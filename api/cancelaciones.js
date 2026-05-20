@@ -1,0 +1,169 @@
+const { Client } = require('pg');
+
+const getClient = () => new Client({
+  host: process.env.REDSHIFT_HOST,
+  port: parseInt(process.env.REDSHIFT_PORT || '5439'),
+  database: process.env.REDSHIFT_DATABASE,
+  user: process.env.REDSHIFT_USER,
+  password: process.env.REDSHIFT_PASSWORD,
+  ssl: { rejectUnauthorized: false },
+  connectionTimeoutMillis: 60000,
+});
+
+// Query 1: Cancelaciones por mes y tipo — query liviana sin joins pesados
+const QUERY_CANCELACIONES = `
+WITH subs_filtradas AS (
+  SELECT
+    id,
+    zuora__account__c                             AS student_id,
+    CAST(zuora__subscriptionstartdate__c AS date) AS subscription_start_date,
+    zuora__cancelleddate__c                       AS fecha_cancelacion,
+    subscriptionstatus__c                         AS subscription_status
+  FROM (
+    SELECT
+      id,
+      zuora__account__c,
+      zuora__subscriptionstartdate__c,
+      zuora__cancelleddate__c,
+      subscriptionstatus__c,
+      zuora__status__c,
+      isdeleted,
+      ROW_NUMBER() OVER(PARTITION BY id ORDER BY lastmodifieddate DESC) AS rn
+    FROM "salesforce-database".subscriptions
+  )
+  WHERE isdeleted = false
+    AND rn = 1
+    AND zuora__cancelleddate__c >= '2024-05-01'
+    AND zuora__status__c = 'Cancelled'
+),
+primera_suscripcion AS (
+  SELECT
+    student_id,
+    MIN(fecha_cierre) AS primera_fecha
+  FROM salesforce.tabla_core_oportunidades
+  WHERE etapa = 'Ganada Verificada'
+    AND (
+      (sub_tipo_venta LIKE '%Bootcamp%' AND tipo_pago = 'Cuotas')
+      OR sub_tipo_venta LIKE '%Suscripción smartBeemo%'
+      OR (sub_tipo_venta = 'Mentoría' AND tipo_pago = 'Cuotas')
+    )
+  GROUP BY student_id
+),
+casos_cobranza AS (
+  SELECT suscripcion, status,
+    ROW_NUMBER() OVER(PARTITION BY suscripcion ORDER BY fecha_cierre DESC) AS rn
+  FROM salesforce.tabla_intermedia_casos_cobranza
+),
+casos_chargeback AS (
+  SELECT suscripcion, numero_caso,
+    ROW_NUMBER() OVER(PARTITION BY suscripcion ORDER BY fecha_cierre_real DESC) AS rn
+  FROM salesforce.tabla_core_casos
+  WHERE status = 'Cancelado' AND id_registro_caso = '012UH000001iGJpYAM'
+),
+cancelaciones_clasificadas AS (
+  -- Partimos de primera_suscripcion (todos los clientes con adquisición)
+  -- y cruzamos con los que tienen cancelaciones
+  SELECT
+    p.student_id,
+    DATE_TRUNC('month', s.fecha_cancelacion)  AS mes_cancel,
+    DATE_TRUNC('month', p.primera_fecha)       AS mes_inicio,
+    DATEDIFF('month', p.primera_fecha, s.fecha_cancelacion) AS meses_vida,
+    CASE
+      WHEN ch.numero_caso IS NOT NULL                          THEN 'Chargeback'
+      WHEN cob.status = 'Cerrado - Cartera Irrecuperable'     THEN 'Por mora'
+      WHEN LOWER(s.subscription_status) IN (
+           'cancelada por no pago','suspendida por no pago',
+           'cancelada por pago de saldo pendiente')            THEN 'Por mora'
+      WHEN LOWER(s.subscription_status) IN (
+           'chargeback','cancelación chargeback prevention',
+           'cancelación por chargeback prevention')            THEN 'Chargeback'
+      WHEN LOWER(s.subscription_status) IN (
+           'cancelación programada','cancelacion programada',
+           'cancelación con reembolso','suscripción cancelada') THEN 'Voluntaria'
+      WHEN LOWER(s.subscription_status) = 'suscripción cancelada desenrolada'
+                                                               THEN 'Desenrolada'
+      ELSE 'Otro'
+    END AS tipo_cancelacion,
+    CASE
+      WHEN e.pais_agrupado IN ('México','Mexico')              THEN 'México'
+      WHEN e.pais_agrupado = 'Colombia'                        THEN 'Colombia'
+      WHEN e.pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos'
+      ELSE 'Otros'
+    END AS pais_agrupado,
+    ROW_NUMBER() OVER(
+      PARTITION BY p.student_id, DATE_TRUNC('month', s.fecha_cancelacion)
+      ORDER BY s.fecha_cancelacion DESC
+    ) AS rn_cliente_mes
+  FROM primera_suscripcion p
+  -- Solo los que tienen cancelaciones
+  INNER JOIN subs_filtradas s          ON p.student_id = s.student_id
+  LEFT JOIN salesforce.tabla_core_estudiantes e ON p.student_id = e.student_id
+  LEFT JOIN casos_cobranza cob         ON s.id = cob.suscripcion AND cob.rn = 1
+  LEFT JOIN casos_chargeback ch        ON s.id = ch.suscripcion AND ch.rn = 1
+)
+SELECT
+  TO_CHAR(mes_cancel, 'YYYY-MM') AS mes_cancelacion,
+  TO_CHAR(mes_inicio, 'YYYY-MM') AS mes_inicio,
+  tipo_cancelacion,
+  pais_agrupado,
+  meses_vida                     AS meses_vida_real,
+  COUNT(*)                       AS suscripciones,
+  AVG(meses_vida)                AS avg_meses_activo
+FROM cancelaciones_clasificadas
+WHERE rn_cliente_mes = 1
+GROUP BY mes_cancel, mes_inicio, tipo_cancelacion, pais_agrupado, meses_vida
+ORDER BY mes_cancelacion, mes_inicio;
+`;
+
+// Query 2: Nuevos clientes — misma definición que pestaña Salud
+// Primera oportunidad de adquisición por cliente, sin corte de fecha
+const QUERY_NUEVOS = `
+SELECT
+  TO_CHAR(DATE_TRUNC('month', fecha_cierre), 'YYYY-MM') AS mes,
+  CASE
+    WHEN pais_agrupado IN ('México','Mexico')                THEN 'México'
+    WHEN pais_agrupado = 'Colombia'                          THEN 'Colombia'
+    WHEN pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos'
+    ELSE 'Otros'
+  END AS pais_agrupado,
+  COUNT(DISTINCT student_id) AS nuevos_clientes
+FROM (
+  SELECT o.student_id, o.fecha_cierre, e.pais_agrupado,
+    ROW_NUMBER() OVER(PARTITION BY o.student_id ORDER BY o.fecha_cierre ASC) AS orden
+  FROM salesforce.tabla_core_oportunidades o
+  LEFT JOIN salesforce.tabla_core_estudiantes e ON o.student_id = e.student_id
+  WHERE o.tipo_venta = 'Adquisicion'
+    AND o.etapa IN ('Ganada Verificada', 'Closed Won')
+    AND (
+      (o.sub_tipo_venta LIKE '%Bootcamp%' AND o.tipo_pago = 'Cuotas')
+      OR o.sub_tipo_venta LIKE '%Suscripción smartBeemo%'
+      OR (o.sub_tipo_venta = 'Mentoría' AND o.tipo_pago = 'Cuotas')
+    )
+    AND o.fecha_cierre >= '2024-03-06'
+)
+WHERE orden = 1
+GROUP BY DATE_TRUNC('month', fecha_cierre), pais_agrupado
+ORDER BY mes;
+`;
+
+module.exports = async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 's-maxage=10800, stale-while-revalidate=3600');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  const client = getClient();
+  try {
+    await client.connect();
+    const [r1, r2] = await Promise.all([
+      client.query(QUERY_CANCELACIONES),
+      client.query(QUERY_NUEVOS),
+    ]);
+    res.status(200).json({ data: r1.rows, nuevos: r2.rows });
+  } catch (err) {
+    console.error('Cancelaciones API error:', err.message);
+    res.status(500).json({ error: err.message });
+  } finally {
+    await client.end();
+  }
+};
