@@ -1,0 +1,31 @@
+name: Sync Redis Cache
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'   # cada 4 horas
+  workflow_dispatch:          # botón manual en GitHub Actions
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci --omit=dev --ignore-scripts
+
+      - name: Run sync
+        run: node scripts/sync-redis.js
+        env:
+          REDSHIFT_HOST:                  ${{ secrets.REDSHIFT_HOST }}
+          REDSHIFT_PORT:                  ${{ secrets.REDSHIFT_PORT }}
+          REDSHIFT_DATABASE:              ${{ secrets.REDSHIFT_DATABASE }}
+          REDSHIFT_USER:                  ${{ secrets.REDSHIFT_USER }}
+          REDSHIFT_PASSWORD:              ${{ secrets.REDSHIFT_PASSWORD }}
+          UPSTASH_REDIS_KV_REST_API_URL:  ${{ secrets.UPSTASH_REDIS_KV_REST_API_URL }}
+          UPSTASH_REDIS_KV_REST_API_TOKEN: ${{ secrets.UPSTASH_REDIS_KV_REST_API_TOKEN }}
