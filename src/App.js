@@ -393,6 +393,7 @@ const NAV_ICONS = {
   'Cancelaciones': <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><path d="M2 4h11M2 7.5h8M2 11h5"/><circle cx="12" cy="11" r="2.5"/><path d="M11 10l1 1 1.5-1.5"/></svg>,
   'Churn':         <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><path d="M2 12L5 8l2.5 2L10 6l3 4"/><path d="M2 12h11"/></svg>,
   'Usuarios':      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><circle cx="5.5" cy="4.5" r="2.5"/><path d="M1 13c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4"/><circle cx="11.5" cy="5.5" r="2"/><path d="M11 13c0-1.5.8-2.8 2.5-3.5"/></svg>,
+  'Sincronización': <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><path d="M2 7.5a5.5 5.5 0 0 1 9.5-3.8"/><path d="M13 7.5a5.5 5.5 0 0 1-9.5 3.8"/><path d="M10.5 3l1.5 1-1 1.5"/><path d="M4.5 12l-1.5-1 1-1.5"/></svg>,
 };
 function NavTab({tabs, active, onChange, badges={}}){
   return(
@@ -2669,6 +2670,132 @@ export default function AppWrapper(){
   </>;
 }
 
+function SyncTab({authUser}){
+  const [log,setLog]=useState(null);
+  const [loadingStatus,setLoadingStatus]=useState(true);
+  const [syncing,setSyncing]=useState(false);
+  const [syncError,setSyncError]=useState(null);
+
+  const authHeader=()=>({Authorization:`Bearer ${localStorage.getItem('auth_token')}`});
+
+  const fetchStatus=async()=>{
+    setLoadingStatus(true);
+    try{
+      const r=await fetch('/api/sync',{headers:authHeader()});
+      const d=await r.json();
+      if(d.ok) setLog(d.log);
+    }catch(e){setSyncError(e.message);}
+    finally{setLoadingStatus(false);}
+  };
+
+  useEffect(()=>{fetchStatus();},[]);
+
+  const handleSync=async()=>{
+    setSyncing(true); setSyncError(null);
+    try{
+      const r=await fetch('/api/sync',{method:'POST',headers:authHeader()});
+      const d=await r.json();
+      if(d.ok) setLog(d.log);
+      else setSyncError(d.error||'Error al sincronizar');
+    }catch(e){setSyncError(e.message);}
+    finally{setSyncing(false);}
+  };
+
+  const LABELS={
+    'recurrencia':'Recurrencia','salud':'Salud','salud-cohortes':'Cohortes',
+    'cancelaciones':'Cancelaciones','churn':'Churn (+ Tiempo de Vida)','marketing':'Marketing / CAC',
+  };
+
+  const fmtTs=iso=>{
+    if(!iso) return '—';
+    return new Date(iso).toLocaleString('es-CO',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  };
+  const fmtMs=ms=>{
+    if(!ms&&ms!==0) return '—';
+    return ms<1000?`${ms}ms`:`${(ms/1000).toFixed(1)}s`;
+  };
+
+  const statusColor={ok:'#34d399',partial:'#fbbf24',running:'#fbbf24',error:'#f87171'};
+
+  return(
+    <div style={{maxWidth:720,padding:'24px 0'}}>
+      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:24,gap:16}}>
+        <div>
+          <h2 style={{fontSize:20,fontWeight:700,margin:0,color:'#f1f5f9'}}>Sincronización de datos</h2>
+          <p style={{color:'rgba(255,255,255,0.4)',fontSize:13,margin:'4px 0 0'}}>
+            Cron automático cada 4 horas · Los datos se sirven desde caché Redis
+          </p>
+        </div>
+        <button onClick={handleSync} disabled={syncing} style={{
+          padding:'10px 20px',background:syncing?'rgba(99,102,241,0.4)':'#6366f1',
+          border:'none',borderRadius:8,color:'#fff',fontWeight:600,fontSize:14,
+          cursor:syncing?'not-allowed':'pointer',display:'flex',alignItems:'center',
+          gap:8,minWidth:172,justifyContent:'center',flexShrink:0,
+        }}>
+          <svg width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"
+            style={syncing?{animation:'spin 1s linear infinite'}:{}}
+          ><path d="M2 7.5a5.5 5.5 0 0 1 9.5-3.8"/><path d="M13 7.5a5.5 5.5 0 0 1-9.5 3.8"/><path d="M10.5 3l1.5 1-1 1.5"/><path d="M4.5 12l-1.5-1 1-1.5"/></svg>
+          {syncing?'Sincronizando…':'Sincronizar ahora'}
+        </button>
+      </div>
+
+      {syncError&&(
+        <div style={{background:'rgba(239,68,68,0.12)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:8,padding:'10px 14px',marginBottom:16,color:'#fca5a5',fontSize:13}}>
+          {syncError}
+        </div>
+      )}
+
+      {log&&(
+        <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:10,padding:'12px 16px',marginBottom:20,fontSize:13,display:'flex',gap:24,flexWrap:'wrap'}}>
+          <span style={{color:'rgba(255,255,255,0.45)'}}>Estado:&nbsp;
+            <strong style={{color:statusColor[log.status]||'#94a3b8'}}>
+              {log.status==='ok'?'OK':log.status==='running'?'Ejecutando…':'Parcial'}
+            </strong>
+          </span>
+          <span style={{color:'rgba(255,255,255,0.45)'}}>Inicio:&nbsp;<strong style={{color:'#e2e8f0'}}>{fmtTs(log.startedAt)}</strong></span>
+          {log.completedAt&&<span style={{color:'rgba(255,255,255,0.45)'}}>Completado:&nbsp;<strong style={{color:'#e2e8f0'}}>{fmtTs(log.completedAt)}</strong></span>}
+        </div>
+      )}
+
+      {loadingStatus?(
+        <div style={{color:'rgba(255,255,255,0.25)',padding:'40px 0',textAlign:'center',fontSize:14}}>Cargando estado…</div>
+      ):(
+        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+          {Object.entries(LABELS).map(([key,label])=>{
+            const ep=log?.endpoints?.[key];
+            const ok=ep?.status==='ok';
+            const err=ep?.status==='error';
+            return(
+              <div key={key} style={{
+                display:'flex',alignItems:'center',
+                background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',
+                borderRadius:8,padding:'12px 16px',gap:12,
+              }}>
+                <span style={{
+                  width:8,height:8,borderRadius:'50%',flexShrink:0,
+                  background:!ep?'rgba(255,255,255,0.15)':ok?'#34d399':'#f87171',
+                  boxShadow:ok?'0 0 6px #34d399':'none',
+                }}/>
+                <span style={{flex:1,fontWeight:600,color:'#e2e8f0',fontSize:14}}>{label}</span>
+                {ep?(
+                  <>
+                    <span style={{color:ok?'rgba(255,255,255,0.45)':'#fca5a5',fontSize:12,maxWidth:260,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                      {ok?fmtTs(ep.syncedAt):`Error: ${ep.error}`}
+                    </span>
+                    <span style={{color:'rgba(255,255,255,0.3)',fontSize:12,minWidth:48,textAlign:'right'}}>{fmtMs(ep.ms)}</span>
+                  </>
+                ):(
+                  <span style={{color:'rgba(255,255,255,0.2)',fontSize:12}}>Sin sincronizar</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App({authUser, onLogout}){
   const [raw,setRaw]=useState([]);
   const [lastUpdate,setLastUpdate]=useState(null);
@@ -2788,14 +2915,8 @@ function App({authUser, onLogout}){
       // Fetch principal rápido (5 queries en paralelo)
       fetch('/api/churn').then(r=>r.json()).then(({nuevos,cancelaciones,tasaChurn,tiempoVida,motivos,churnPais,error})=>{
         if(error) throw new Error(error);
-        setChurn({nuevos,cancelaciones,tasaChurn,tiempoVida:[],motivos,churnPais});
+        setChurn({nuevos,cancelaciones,tasaChurn,tiempoVida:tiempoVida||[],motivos,churnPais});
       }).catch(e=>setChurnError(e.message)).finally(()=>setChurnLoading(false));
-
-      // Fetch tiempoVida por separado (query pesada)
-      fetch('/api/churn-vida').then(r=>r.json()).then(({tiempoVida,error})=>{
-        if(error) return;
-        setChurn(prev=>prev ? {...prev, tiempoVida:tiempoVida||[]} : null);
-      }).catch(()=>{});
     }
     if(activeTab==='Cancelaciones' && !cancelaciones && !cancelLoading){
       setCancelLoading(true);
@@ -3202,9 +3323,12 @@ function App({authUser, onLogout}){
             </div>
           </div>
           <NavTab
-            tabs={authUser?.rol==='admin'
-              ? ['Recurrencia','Upgrades','Salud','Cancelaciones','Churn','Usuarios']
-              : (authUser?.pestanas || ['Recurrencia','Upgrades','Salud','Cancelaciones','Churn'])}
+            tabs={[
+              ...(authUser?.rol==='admin'
+                ? ['Recurrencia','Upgrades','Salud','Cancelaciones','Churn','Usuarios']
+                : (authUser?.pestanas || ['Recurrencia','Upgrades','Salud','Cancelaciones','Churn'])),
+              ...(authUser?.superAdmin ? ['Sincronización'] : []),
+            ]}
             active={activeTab} onChange={setActiveTab} badges={NAV_BADGES}/>
           <div className="sidebar-footer">
             {lastUpdate
@@ -3281,6 +3405,7 @@ function App({authUser, onLogout}){
               {activeTab==='Cancelaciones'&&<>Suscripciones canceladas en Zuora</>}
               {activeTab==='Churn'&&<>Tasa de cancelación mensual sobre base activa</>}
               {activeTab==='Usuarios'&&<>{fmt(data.length)} facturas en base de datos</>}
+              {activeTab==='Sincronización'&&<>Cron cada 4 horas · Caché Redis de 5 horas</>}
               {(filtroFechaDesde||filtroFechaHasta)&&<span className="periodo-tag"> · 📅 {filtroFechaDesde||'…'} → {filtroFechaHasta||'…'}</span>}
               {(filtroPagoDesde||filtroPagoHasta)&&<span className="periodo-tag"> · 💳 {filtroPagoDesde||'…'} → {filtroPagoHasta||'…'}</span>}
             </p>
@@ -3688,6 +3813,11 @@ function App({authUser, onLogout}){
         {/* ── TAB: USUARIOS (solo admin) ── */}
         {activeTab==='Usuarios'&&authUser?.rol==='admin'&&(
           <UsuariosTab currentUser={authUser}/>
+        )}
+
+        {/* ── TAB: SINCRONIZACIÓN (solo super admin) ── */}
+        {activeTab==='Sincronización'&&authUser?.superAdmin&&(
+          <SyncTab authUser={authUser}/>
         )}
 
           </div>{/* tab-content */}

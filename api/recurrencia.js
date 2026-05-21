@@ -1,4 +1,5 @@
 const { Client } = require('pg');
+const { Redis } = require('@upstash/redis');
 
 const getClient = () => new Client({
   host: process.env.REDSHIFT_HOST,
@@ -183,17 +184,32 @@ const QUERY = `
     AND (f.fecha_pago IS NULL OR f.fecha_pago <= GETDATE())
 `;
 
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_KV_REST_API_URL,
+  token: process.env.UPSTASH_REDIS_KV_REST_API_TOKEN,
+});
+const CACHE_KEY = 'cache:recurrencia';
+const CACHE_TTL = 18000;
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 's-maxage=10800, stale-while-revalidate=3600');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
+  const isSyncReq = req.headers['x-sync-secret'] === process.env.CRON_SECRET;
+  if (!isSyncReq) {
+    const cached = await redis.get(CACHE_KEY);
+    if (cached) return res.status(200).json(typeof cached === 'string' ? JSON.parse(cached) : cached);
+  }
+
   const client = getClient();
   try {
     await client.connect();
     const result = await client.query(QUERY);
-    res.status(200).json({ data: result.rows });
+    const data = { data: result.rows };
+    await redis.set(CACHE_KEY, JSON.stringify(data), { ex: CACHE_TTL });
+    res.status(200).json(data);
   } catch (err) {
     console.error('Redshift error:', err.message);
     res.status(500).json({ error: err.message });

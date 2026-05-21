@@ -46,6 +46,7 @@ module.exports = async (req, res) => {
     email: user.email,
     nombre: user.nombre,
     rol: user.rol,
+    superAdmin: emailLower === 'jpalacios@smartbeemo.com',
     pestanas: user.pestanas || ['Recurrencia','Upgrades','Salud','Cancelaciones','Churn'],
     created_at: new Date().toISOString(),
   };
@@ -60,6 +61,7 @@ module.exports = async (req, res) => {
       nombre: user.nombre,
       email: user.email,
       rol: user.rol,
+      superAdmin: emailLower === 'jpalacios@smartbeemo.com',
       pestanas: user.pestanas || ['Recurrencia','Upgrades','Salud','Cancelaciones','Churn'],
       must_change_password: !!user.must_change_password,
     },

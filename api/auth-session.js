@@ -24,6 +24,7 @@ module.exports = async (req, res) => {
       nombre: session.nombre,
       email: session.email,
       rol: session.rol,
+      superAdmin: !!session.superAdmin,
       pestanas: session.pestanas || ['Recurrencia','Upgrades','Salud','Cancelaciones','Churn'],
       must_change_password: !!session.must_change_password,
     }
