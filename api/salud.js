@@ -52,10 +52,14 @@ const W_NUEVOS = `o.etapa IN ('Ganada Verificada', 'Closed Won')
       OR (o.sub_tipo_venta = 'Mentoría' AND o.tipo_pago = 'Cuotas')
     )`;
 
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_KV_REST_API_URL,
-  token: process.env.UPSTASH_REDIS_KV_REST_API_TOKEN,
-});
+let _redis = null;
+const getRedis = () => {
+  if (!_redis) _redis = new Redis({
+    url: process.env.UPSTASH_REDIS_KV_REST_API_URL,
+    token: process.env.UPSTASH_REDIS_KV_REST_API_TOKEN,
+  });
+  return _redis;
+};
 const CACHE_KEY = 'cache:salud';
 const CACHE_TTL = 18000;
 
@@ -65,6 +69,7 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
+  const redis = getRedis();
   const isSyncReq = req.headers['x-sync-secret'] === process.env.CRON_SECRET;
   if (!isSyncReq) {
     const cached = await redis.get(CACHE_KEY);

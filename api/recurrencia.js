@@ -184,10 +184,14 @@ const QUERY = `
     AND (f.fecha_pago IS NULL OR f.fecha_pago <= GETDATE())
 `;
 
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_KV_REST_API_URL,
-  token: process.env.UPSTASH_REDIS_KV_REST_API_TOKEN,
-});
+let _redis = null;
+const getRedis = () => {
+  if (!_redis) _redis = new Redis({
+    url: process.env.UPSTASH_REDIS_KV_REST_API_URL,
+    token: process.env.UPSTASH_REDIS_KV_REST_API_TOKEN,
+  });
+  return _redis;
+};
 const CACHE_KEY = 'cache:recurrencia';
 const CACHE_TTL = 18000;
 
@@ -197,23 +201,26 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const isSyncReq = req.headers['x-sync-secret'] === process.env.CRON_SECRET;
-  if (!isSyncReq) {
-    const cached = await redis.get(CACHE_KEY);
-    if (cached) return res.status(200).json(typeof cached === 'string' ? JSON.parse(cached) : cached);
-  }
-
-  const client = getClient();
   try {
-    await client.connect();
-    const result = await client.query(QUERY);
-    const data = { data: result.rows };
-    await redis.set(CACHE_KEY, JSON.stringify(data), { ex: CACHE_TTL });
-    res.status(200).json(data);
+    const redis = getRedis();
+    const isSyncReq = req.headers['x-sync-secret'] === process.env.CRON_SECRET;
+    if (!isSyncReq) {
+      const cached = await redis.get(CACHE_KEY);
+      if (cached) return res.status(200).json(typeof cached === 'string' ? JSON.parse(cached) : cached);
+    }
+
+    const client = getClient();
+    try {
+      await client.connect();
+      const result = await client.query(QUERY);
+      const data = { data: result.rows };
+      await redis.set(CACHE_KEY, JSON.stringify(data), { ex: CACHE_TTL });
+      res.status(200).json(data);
+    } finally {
+      await client.end();
+    }
   } catch (err) {
-    console.error('Redshift error:', err.message);
+    console.error('recurrencia error:', err.message);
     res.status(500).json({ error: err.message });
-  } finally {
-    await client.end();
   }
 };
