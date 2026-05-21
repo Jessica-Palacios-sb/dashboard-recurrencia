@@ -106,7 +106,7 @@ const ENDPOINTS = [
   WHERE f.invoice_factura = 'invoice'
     AND o.etapa IN ('Ganada Verificada', 'Closed Won')
     AND ((o.sub_tipo_venta LIKE '%Bootcamp%' AND o.tipo_pago = 'Cuotas') OR o.sub_tipo_venta LIKE '%Suscripción smartBeemo%' OR (o.sub_tipo_venta = 'Mentoría' AND o.tipo_pago = 'Cuotas') OR o.tipo_venta IN ('Up-Selling','Cross-Selling','Upgrade OPS','Freemium Cross-Selling'))
-    AND (f.fecha_pago IS NULL OR f.fecha_pago <= GETDATE())
+    AND f.fecha_pago >= DATEADD('year', -3, GETDATE()) AND f.fecha_pago <= GETDATE()
   UNION ALL
   SELECT
     f.student_id, f.id AS id_factura, f.invoice_fact_number, f.numero_invoice_factura,
@@ -142,7 +142,7 @@ const ENDPOINTS = [
     AND o.fecha_cierre < '2024-03-06'
     AND o.etapa IN ('Ganada Verificada', 'Closed Won')
     AND ((o.sub_tipo_venta LIKE '%Bootcamp%' AND o.tipo_pago = 'Cuotas') OR o.sub_tipo_venta LIKE '%Suscripción smartBeemo%' OR (o.sub_tipo_venta = 'Mentoría' AND o.tipo_pago = 'Cuotas') OR o.tipo_venta IN ('Up-Selling','Cross-Selling','Upgrade OPS','Freemium Cross-Selling'))
-    AND (f.fecha_pago IS NULL OR f.fecha_pago <= GETDATE())`);
+    AND f.fecha_pago >= DATEADD('year', -3, GETDATE()) AND f.fecha_pago <= GETDATE()`);
       return { data: r.rows };
     },
   },

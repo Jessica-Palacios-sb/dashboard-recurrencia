@@ -98,7 +98,7 @@ const QUERY = `
       OR (o.sub_tipo_venta = 'Mentoría' AND o.tipo_pago = 'Cuotas')
       OR o.tipo_venta IN ('Up-Selling','Cross-Selling','Upgrade OPS','Freemium Cross-Selling')
     )
-    AND (f.fecha_pago IS NULL OR f.fecha_pago <= GETDATE())
+    AND f.fecha_pago >= DATEADD('year', -3, GETDATE()) AND f.fecha_pago <= GETDATE()
 
   UNION ALL
 
@@ -181,7 +181,7 @@ const QUERY = `
       OR (o.sub_tipo_venta = 'Mentoría' AND o.tipo_pago = 'Cuotas')
       OR o.tipo_venta IN ('Up-Selling','Cross-Selling','Upgrade OPS','Freemium Cross-Selling')
     )
-    AND (f.fecha_pago IS NULL OR f.fecha_pago <= GETDATE())
+    AND f.fecha_pago >= DATEADD('year', -3, GETDATE()) AND f.fecha_pago <= GETDATE()
 `;
 
 let _redis = null;
