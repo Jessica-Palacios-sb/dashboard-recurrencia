@@ -3162,29 +3162,28 @@ function App({authUser, onLogout}){
     const totalClientes=listFilt.length;
     const tasa=totalClientes>0?(upgClientes/totalClientes*100):0;
     const revDespues=upgClientes>0?totalRevUpg/upgClientes:0;
-    // Timing: use fecha_cierre_min vs first upgrade month as proxy
-    const acqDate={};
-    clientesList.forEach(c=>{ if(c.fecha_cierre_min)acqDate[c.student_id]=c.fecha_cierre_min; });
     const RANGOS=['0-1 mes','1-3 meses','3-6 meses','6-12 meses','+12 meses'];
     const counts=Object.fromEntries(RANGOS.map(r=>[r,0]));
     let total=0,totalDays=0;
-    upgRecs.forEach(r=>{
-      const pagoProxy=r.mes?r.mes+'-15':null;
-      // approximate: count clientes per row, split evenly across timing buckets isn't possible
-      // just use 1 data point per aggregated row as a proxy
-      const acq=null; // no per-student match possible without student_id in agg rows
-      void acq; void pagoProxy;
-    });
-    // Fall back to clientesList timing
     upgClientesList.forEach(c=>{
       const acq=c.fecha_cierre_min;
-      if(!acq)return;
-      // Use first upgrade as proxy — we don't have exact date, approximate with a fixed offset
-      total++;totalDays+=180; // not meaningful without exact data
+      const upg=c.fecha_primer_upgrade;
+      if(!acq||!upg)return;
+      const days=Math.round((new Date(upg)-new Date(acq))/86400000);
+      if(days<0)return;
+      totalDays+=days;
+      total++;
+      let rango;
+      if(days<=30)rango='0-1 mes';
+      else if(days<=90)rango='1-3 meses';
+      else if(days<=180)rango='3-6 meses';
+      else if(days<=365)rango='6-12 meses';
+      else rango='+12 meses';
+      counts[rango]++;
     });
-    const tiempoProm=0;
-    const pct01=0;
-    const timingDist=RANGOS.map(rango=>({rango,n:0,pct:0}));
+    const tiempoProm=total>0?Math.round(totalDays/total):0;
+    const pct01=total>0?Math.round(counts['0-1 mes']/total*100):0;
+    const timingDist=RANGOS.map(rango=>({rango,n:counts[rango],pct:total>0?Math.round(counts[rango]/total*100):0}));
     return{upgClientes,totalClientes,tasa,totalRevUpg:Math.round(totalRevUpg),revAntes:0,revDespues,incremento:0,tiempoProm,pct01,timingDist};
   },[dataUpg,selectedTipoUpgrade,clientesList,filtroPais]);
 

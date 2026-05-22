@@ -91,7 +91,8 @@ SELECT
   ROUND(SUM(b.payment_amount_usd)::numeric, 2) AS cobrado,
   COUNT(*)                                      AS facturas,
   MIN(o2.fecha_cierre_str)                      AS fecha_cierre_min,
-  MAX(b.es_upgrade)                             AS tiene_upgrade
+  MAX(b.es_upgrade)                             AS tiene_upgrade,
+  MAX(upg.fecha_primer_upgrade_str)             AS fecha_primer_upgrade
 FROM (
   SELECT f.student_id, f.payment_amount_usd,
     CASE WHEN o.pais_lead_agrupado IN ('México','Mexico') THEN 'México' WHEN o.pais_lead_agrupado IN ('Colombia') THEN 'Colombia' WHEN o.pais_lead_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos' ELSE 'Otros' END AS pais_agrupado,
@@ -111,6 +112,15 @@ LEFT JOIN (
   WHERE etapa IN ('Ganada Verificada', 'Closed Won')
   GROUP BY student_id
 ) o2 ON b.student_id = o2.student_id
+LEFT JOIN (
+  SELECT f2.student_id, TO_CHAR(MIN(f2.fecha_pago), 'YYYY-MM-DD') AS fecha_primer_upgrade_str
+  FROM salesforce.tabla_core_invoices_facturas f2
+  LEFT JOIN salesforce.tabla_core_oportunidades o3 ON f2.id_oportunidad = o3.id
+  WHERE o3.tipo_venta IN ('Up-Selling','Cross-Selling','Upgrade OPS','Freemium Cross-Selling')
+    AND f2.numero_invoice_factura = 1
+    AND f2.fecha_pago IS NOT NULL
+  GROUP BY f2.student_id
+) upg ON b.student_id = upg.student_id
 GROUP BY b.student_id, b.pais_agrupado, e.tipo_suscripcion, b.tipo_pago
 ORDER BY cobrado DESC
 LIMIT 500`;
