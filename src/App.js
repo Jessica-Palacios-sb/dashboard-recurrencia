@@ -32,20 +32,6 @@ function getGranKey(dateStr, gran) {
   return dateStr.slice(0,7);
 }
 
-function DateFieldSelector({value, onChange}) {
-  const opts = [
-    {k:'fecha_pago', l:'Fecha pago'},
-    {k:'due_date',   l:'Vencimiento'},
-    {k:'fecha_cierre', l:'Fecha cierre'},
-  ];
-  return(
-    <div className="gran-selector">
-      {opts.map(o=>(
-        <button key={o.k} className={'gran-btn'+(value===o.k?' active':'')} onClick={()=>onChange(o.k)}>{o.l}</button>
-      ))}
-    </div>
-  );
-}
 
 function GranSelector({value, onChange}) {
   const opts = [{k:'dia',l:'Día'},{k:'semana',l:'Semana'},{k:'mes',l:'Mes'},{k:'año',l:'Año'}];
@@ -2837,7 +2823,6 @@ function App({authUser, onLogout}){
     return tasa+'%';
   },[saludRetencion]);
   const NAV_BADGES = {'Upgrades':'18.6%','Salud':saludBadge,'Cancelaciones':'50%','Churn':'8.5%'};
-  const [dateField,setDateField]=useState('fecha_pago');
   const [filtroPais,setFiltroPais]=useState([]);
   const [filtroTipoVenta,setFiltroTipoVenta]=useState([]);
   const [filtroEstado,setFiltroEstado]=useState([]);
@@ -3493,10 +3478,9 @@ function App({authUser, onLogout}){
 
             <section className="chart-section">
               <div className="chart-section-header">
-                <SectionTitle>Revenue por proceso</SectionTitle>
+                <SectionTitle>Revenue por proceso por fecha de pago</SectionTitle>
                 <div className="chart-header-controls">
                   {selectedMesRec&&<button className="cross-filter-chip" onClick={()=>setSelectedMesRec(null)}>{selectedMesRec} ×</button>}
-                  <DateFieldSelector value={dateField} onChange={setDateField}/>
                   <GranSelector value={granularidad} onChange={setGranularidad}/>
                 </div>
               </div>
