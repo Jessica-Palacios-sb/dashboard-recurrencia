@@ -34,7 +34,7 @@ function getGranKey(dateStr, gran) {
 
 
 function GranSelector({value, onChange}) {
-  const opts = [{k:'dia',l:'Día'},{k:'semana',l:'Semana'},{k:'mes',l:'Mes'},{k:'año',l:'Año'}];
+  const opts = [{k:'mes',l:'Mes'},{k:'año',l:'Año'}];
   return(
     <div className="gran-selector">
       {opts.map(o=>(
