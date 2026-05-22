@@ -18,7 +18,7 @@ function getClient() {
     password: process.env.REDSHIFT_PASSWORD,
     ssl: { rejectUnauthorized: false },
     connectionTimeoutMillis: 60000,
-    query_timeout: 300000,
+    query_timeout: 540000,
   });
 }
 
