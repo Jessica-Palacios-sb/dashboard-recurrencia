@@ -119,7 +119,7 @@ SELECT
   MAX(b.es_upgrade) AS es_upgrade,
   ROUND(SUM(b.payment_amount_usd)::numeric, 2) AS payment_amount_usd,
   ROUND(SUM(b.total_amount_usd)::numeric, 2)   AS total_amount_usd,
-  ROUND(SUM(b.open_balance)::numeric, 2)        AS open_balance,
+  SUM(CASE WHEN b.open_balance = true THEN 1 ELSE 0 END) AS open_balance,
   COUNT(DISTINCT b.student_id)                  AS clientes,
   COUNT(*)                                      AS facturas
 FROM (
@@ -472,8 +472,8 @@ SELECT rango_vida, tipo_cancelacion, cantidad, avg_meses FROM sorted ORDER BY or
 WITH spend_mes AS (
   SELECT TO_CHAR(DATE_TRUNC('month', fecha), 'YYYY-MM') AS mes,
     CASE WHEN pais_agrupado IN ('México','Mexico') THEN 'México' WHEN pais_agrupado = 'Colombia' THEN 'Colombia' WHEN pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos' ELSE 'Otros' END AS pais_agrupado,
-    SUM(spend) AS spend_total
-  FROM salesforce.tabla_intermedia_marketing WHERE spend > 0 AND fecha >= '2024-03-01' GROUP BY 1, 2
+    SUM(spend::decimal) AS spend_total
+  FROM salesforce.tabla_intermedia_marketing WHERE spend::decimal > 0 AND fecha >= '2024-03-01' GROUP BY 1, 2
 ),
 nuevos_reales AS (
   SELECT TO_CHAR(DATE_TRUNC('month', f.fecha_pago), 'YYYY-MM') AS mes,

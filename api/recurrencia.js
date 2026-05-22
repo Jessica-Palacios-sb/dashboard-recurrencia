@@ -65,7 +65,7 @@ SELECT
   MAX(b.es_upgrade) AS es_upgrade,
   ROUND(SUM(b.payment_amount_usd)::numeric, 2) AS payment_amount_usd,
   ROUND(SUM(b.total_amount_usd)::numeric, 2)   AS total_amount_usd,
-  ROUND(SUM(b.open_balance)::numeric, 2)        AS open_balance,
+  SUM(CASE WHEN b.open_balance = true THEN 1 ELSE 0 END) AS open_balance,
   COUNT(DISTINCT b.student_id)                  AS clientes,
   COUNT(*)                                      AS facturas
 FROM (
