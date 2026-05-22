@@ -3295,8 +3295,8 @@ function App({authUser, onLogout}){
             active={activeTab} onChange={setActiveTab} badges={NAV_BADGES}/>
           <div className="sidebar-footer">
             {lastUpdate
-              ? <>Actualizado · {lastUpdate.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})}</>
-              : 'Desde enero 2025'}
+              ? <>Actualizado · {lastUpdate.toLocaleString('es-CO',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</>
+              : 'Sin datos aún'}
           </div>
           {/* User info + logout */}
           <div style={{padding:'12px 16px',borderTop:'1px solid rgba(255,255,255,0.08)',marginTop:'auto'}}>
