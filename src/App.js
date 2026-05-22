@@ -3531,7 +3531,7 @@ function App({authUser, onLogout}){
                   const agg={};
                   meses6.forEach(m=>{ agg[m]={mes:m.slice(5),'Rec-Recurrencia':0,'Rec-Cobranza':0,'Cuotas-Recurrencia':0,'Cuotas-Cobranza':0}; });
                   data.forEach(r=>{
-                    const m=r.fecha_pago?r.fecha_pago.slice(0,7):null;
+                    const m=r.mes||null;
                     if(!m||!agg[m])return;
                     const proc=r.proceso_clasificado||'';
                     const tp=r.tipo_pago==='Cuotas'?'Cuotas':'Rec';
