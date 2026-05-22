@@ -60,7 +60,7 @@ const PROC_FAC = `CASE
 
 const QUERY_MONTHLY = `
 SELECT
-  TO_CHAR(DATE_TRUNC('month', b.fecha_pago), 'YYYY-MM') AS mes,
+  TO_CHAR(b.fecha_pago, 'YYYY-MM-DD') AS mes,
   b.pais_agrupado, b.proceso_clasificado, b.tipo_pago, b.tipo_venta, b.tipo_ingreso, b.estado,
   MAX(b.es_upgrade) AS es_upgrade,
   ROUND(SUM(b.payment_amount_usd)::numeric, 2) AS payment_amount_usd,

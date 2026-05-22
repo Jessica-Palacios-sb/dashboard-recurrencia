@@ -34,7 +34,7 @@ function getGranKey(dateStr, gran) {
 
 
 function GranSelector({value, onChange}) {
-  const opts = [{k:'mes',l:'Mes'},{k:'año',l:'Año'}];
+  const opts = [{k:'dia',l:'Día'},{k:'semana',l:'Semana'},{k:'mes',l:'Mes'},{k:'año',l:'Año'}];
   return(
     <div className="gran-selector">
       {opts.map(o=>(
@@ -2922,8 +2922,8 @@ function App({authUser, onLogout}){
 
   const data=useMemo(()=>raw.filter(r=>{
     // Base: solo mostrar desde enero 2025
-    if(r.mes && r.mes < '2025-01') return false;
-    const mesComoFecha=r.mes?r.mes+'-01':'';
+    if(r.mes && r.mes < '2025-01-01') return false;
+    const mesComoFecha=r.mes?r.mes:'';
     return(
       (filtroPais.length===0||filtroPais.includes(r.pais_agrupado))&&
       (filtroTipoVenta.length===0||filtroTipoVenta.includes(r.tipo_venta))&&
@@ -2937,12 +2937,12 @@ function App({authUser, onLogout}){
 
   const dataRec=useMemo(()=>{
     if(!selectedMesRec)return data;
-    return data.filter(r=>getGranKey(r.mes+'-01',granularidad)===selectedMesRec);
+    return data.filter(r=>getGranKey(r.mes,granularidad)===selectedMesRec);
   },[data,selectedMesRec,granularidad]);
 
   const dataUpg=useMemo(()=>{
     if(!selectedMesUpgrade)return data;
-    return data.filter(r=>getGranKey(r.mes+'-01',granularidad)===selectedMesUpgrade);
+    return data.filter(r=>getGranKey(r.mes,granularidad)===selectedMesUpgrade);
   },[data,selectedMesUpgrade,granularidad]);
 
   // ── KPIs generales ──
@@ -2957,7 +2957,7 @@ function App({authUser, onLogout}){
     const mesAnteriorKpi=new Date(new Date().getFullYear(),new Date().getMonth()-1,1).toISOString().slice(0,7);
     const porMes={};
     dataRec.forEach(r=>{
-      const m=r.mes;
+      const m=r.mes?r.mes.slice(0,7):null;
       if(!m||m>=mesActualKpi)return;
       if(r.proceso_clasificado==='Recurrencia'||r.proceso_clasificado==='Cobranza'){
         porMes[m]=(porMes[m]||0)+(+r.payment_amount_usd||0);
@@ -2977,7 +2977,7 @@ function App({authUser, onLogout}){
     const hoy=new Date();
     const mesActual=hoy.toISOString().slice(0,7);
     data.forEach(r=>{
-      const m=r.mes;
+      const m=r.mes?r.mes.slice(0,7):null;
       if(!m||m>=mesActual||m<'2024-05')return;
       if(r.proceso_clasificado==='Recurrencia'||r.proceso_clasificado==='Cobranza'){
         if(!ticketMes[m])ticketMes[m]={cobrado:0,clientes:0};
@@ -2991,7 +2991,7 @@ function App({authUser, onLogout}){
     const ticketCambio=ticketInicio>0?((ticketActual-ticketInicio)/ticketInicio)*100:0;
     const recMes={};
     data.forEach(r=>{
-      const m=r.mes;
+      const m=r.mes?r.mes.slice(0,7):null;
       if(!m)return;
       if(r.proceso_clasificado==='Recurrencia'||r.proceso_clasificado==='Cobranza'){
         recMes[m]=(recMes[m]||0)+(+r.clientes||0);
@@ -3011,7 +3011,7 @@ function App({authUser, onLogout}){
     const hace3=mesesRec.length>=4?mesesRec[mesesRec.length-4]:mesesRec[0];
     const retPais={};
     data.filter(r=>(r.proceso_clasificado==='Recurrencia'||r.proceso_clasificado==='Cobranza')&&r.mes).forEach(r=>{
-      const m=r.mes;
+      const m=r.mes.slice(0,7);
       if(m<hace3)return;
       const p=r.pais_agrupado||'Otro';
       if(!retPais[p])retPais[p]={};
@@ -3046,7 +3046,7 @@ function App({authUser, onLogout}){
     const agg={};
     const hoyCap = new Date().toISOString().slice(0,7);
     data.forEach(r=>{
-      const key=getGranKey(r.mes+'-01',granularidad);
+      const key=getGranKey(r.mes,granularidad);
       if(!key||key.slice(0,7)>hoyCap)return;
       if(!agg[key])agg[key]={mes:key,total:0,Recurrencia:0,'Up-Selling':0,'Bootcamp & Cross':0,Cobranza:0,Comeback:0,'Cuotas Mentorías':0,Adquisicion:0,upgrades:0,upgrades_clientes:0};
       const cobrado=+r.payment_amount_usd||0;
@@ -3066,7 +3066,7 @@ function App({authUser, onLogout}){
 
     const pagoMes={};
     data.forEach(r=>{
-      const m=r.mes;
+      const m=r.mes?r.mes.slice(0,7):null;
       if(!m||m>mesActual||m<'2024-05')return;
       if(!pagoMes[m])pagoMes[m]={mes:m,total:0,Recurrencia:0,upgrades:0,upgrades_clientes:0,clientes:0};
       const cobrado=+r.payment_amount_usd||0;
@@ -3125,7 +3125,7 @@ function App({authUser, onLogout}){
     const hoyCap=new Date().toISOString().slice(0,7);
     const agg={};
     data.filter(r=>(r.es_upgrade==='1'||r.es_upgrade===1)&&(r.tipo_venta||'Otro')===selectedTipoUpgrade).forEach(r=>{
-      const key=getGranKey(r.mes+'-01',granularidad);
+      const key=getGranKey(r.mes,granularidad);
       if(!key||key.slice(0,7)>hoyCap)return;
       if(!agg[key])agg[key]={mes:key,total:0,clientes:0};
       agg[key].total+=(+r.payment_amount_usd||0);
@@ -3514,7 +3514,7 @@ function App({authUser, onLogout}){
                   const agg={};
                   meses6.forEach(m=>{ agg[m]={mes:m.slice(5),'Rec-Recurrencia':0,'Rec-Cobranza':0,'Cuotas-Recurrencia':0,'Cuotas-Cobranza':0}; });
                   data.forEach(r=>{
-                    const m=r.mes||null;
+                    const m=r.mes?r.mes.slice(0,7):null;
                     if(!m||!agg[m])return;
                     const proc=r.proceso_clasificado||'';
                     const tp=r.tipo_pago==='Cuotas'?'Cuotas':'Rec';
