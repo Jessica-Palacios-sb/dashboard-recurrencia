@@ -200,6 +200,7 @@ cancelaciones AS (
   LEFT JOIN casos_chargeback ch  ON s.id = ch.suscripcion  AND ch.ultimo_caso = 1
   WHERE s.fecha_cancelacion IS NOT NULL
     AND s.fecha_cancelacion >= '2024-03-06'
+    AND s.fecha_cancelacion <= GETDATE()
     AND LOWER(COALESCE(s.subscription_status,'')) NOT IN ('cotización expirada','cotizacion expirada','upgraded','')
     AND s.subscription_status IS NOT NULL
     AND DATEDIFF('month', p.primera_fecha, s.fecha_cancelacion) >= 0
@@ -293,6 +294,7 @@ cancel_pais AS (
   ) ch ON s.id = ch.suscripcion AND ch.ult = 1
   WHERE s.fecha_cancelacion IS NOT NULL
     AND s.fecha_cancelacion >= '2024-03-06'
+    AND s.fecha_cancelacion <= GETDATE()
     AND LOWER(COALESCE(s.subscription_status,'')) NOT IN ('cotización expirada','cotizacion expirada','upgraded','')
     AND s.subscription_status IS NOT NULL
   GROUP BY 1
