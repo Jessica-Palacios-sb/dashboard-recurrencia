@@ -1,5 +1,6 @@
 const { Client } = require('pg');
 const { Redis } = require('@upstash/redis');
+const { readCache } = require('./_cache');
 
 const getClient = () => new Client({
   host: process.env.REDSHIFT_HOST,
@@ -31,8 +32,8 @@ module.exports = async (req, res) => {
   const redis = getRedis();
   const isSyncReq = req.headers['x-sync-secret'] === process.env.CRON_SECRET;
   if (!isSyncReq) {
-    const cached = await redis.get(CACHE_KEY);
-    if (cached) return res.status(200).json(typeof cached === 'string' ? JSON.parse(cached) : cached);
+    const cached = await readCache(redis, CACHE_KEY);
+    if (cached) return res.status(200).json(cached);
   }
 
   const client = getClient();

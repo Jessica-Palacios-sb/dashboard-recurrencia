@@ -4,6 +4,9 @@
 // Usage (CI):     env vars injected by GitHub Actions secrets
 try { require('dotenv').config({ path: '.env.local' }); } catch {}
 
+const zlib = require('zlib');
+const { promisify } = require('util');
+const gzip = promisify(zlib.gzip);
 const { Client } = require('pg');
 const { Redis } = require('@upstash/redis');
 
@@ -34,7 +37,11 @@ async function syncOne(name, cacheKey, queryFn) {
     process.stdout.write(`  ${name}...`);
     await client.connect();
     const data = await queryFn(client);
-    await redis.set(cacheKey, JSON.stringify(data), { ex: CACHE_TTL });
+    const serialized = JSON.stringify(data);
+    const compressed = await gzip(serialized);
+    const value = 'gz:' + compressed.toString('base64');
+    await redis.set(cacheKey, value, { ex: CACHE_TTL });
+    process.stdout.write(` [${(serialized.length/1024/1024).toFixed(2)}MB→${(value.length/1024/1024).toFixed(2)}MB]`);
     console.log(` OK (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
     return { status: 'ok', ms: Date.now() - t0 };
   } catch (err) {
