@@ -253,7 +253,7 @@ WITH activos_pais AS (
     AND f.fecha_pago >= '2024-03-06'
     AND o.etapa IN ('Ganada Verificada', 'Closed Won')
     AND f.numero_invoice_factura >= 1
-  GROUP BY e.pais_agrupado
+  GROUP BY 1
 ),
 cancel_pais AS (
   SELECT
@@ -293,7 +293,7 @@ cancel_pais AS (
     AND s.fecha_cancelacion >= '2024-03-06'
     AND LOWER(COALESCE(s.subscription_status,'')) NOT IN ('cotización expirada','cotizacion expirada','upgraded','')
     AND s.subscription_status IS NOT NULL
-  GROUP BY e.pais_agrupado
+  GROUP BY 1
 )
 SELECT
   a.pais_agrupado,
