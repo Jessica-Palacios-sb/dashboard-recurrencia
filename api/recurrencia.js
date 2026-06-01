@@ -139,18 +139,11 @@ const CACHE_TTL = 18000;
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 's-maxage=10800, stale-while-revalidate=3600');
+  res.setHeader('Cache-Control', 's-maxage=0, stale-while-revalidate=0');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    const redis = getRedis();
-    const isSyncReq = req.headers['x-sync-secret'] === process.env.CRON_SECRET;
-    if (!isSyncReq) {
-      const cached = await readCache(redis, CACHE_KEY);
-      if (cached) return res.status(200).json(cached);
-    }
-
     const client = getClient();
     try {
       await client.connect();
@@ -159,11 +152,6 @@ module.exports = async (req, res) => {
         client.query(QUERY_CLIENTES),
       ]);
       const data = { data: r1.rows, clientes: r2.rows };
-      try {
-        await redis.set(CACHE_KEY, JSON.stringify(data), { ex: CACHE_TTL });
-      } catch (redisErr) {
-        console.error('Redis cache set error (likely size limit):', redisErr.message);
-      }
       res.status(200).json(data);
     } finally {
       await client.end();
