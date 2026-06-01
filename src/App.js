@@ -424,7 +424,10 @@ function ChurnTab({data}){
   // Flujo combinado
   const mesesSet = new Set([...Object.keys(nuevosMes), ...Object.keys(cancelMes)]);
   const flujoData = Array.from(mesesSet).sort()
-    .filter(m => m >= '2024-05')
+    .filter(m => {
+      const currentMonth = new Date().toISOString().slice(0,7);
+      return m >= '2024-05' && m < currentMonth;
+    })
     .map(m => ({
       mes: m,
       nuevos:     nuevosMes[m]?.nuevos || 0,
@@ -434,12 +437,18 @@ function ChurnTab({data}){
 
   // Tasa de churn por mes
   const tasaData = (data.tasaChurn||[])
-    .filter(r => r.mes >= '2024-05')
+    .filter(r => {
+      const currentMonth = new Date().toISOString().slice(0,7);
+      return r.mes >= '2024-05' && r.mes < currentMonth;
+    })
     .map(r => ({mes:r.mes, tasa:+r.tasa_churn, clientes:+r.clientes_activos, cancelaciones:+r.cancelaciones}));
 
   // Cancelaciones apiladas por tipo y mes
   const cancelStack = Object.values(cancelMes)
-    .filter(d => d.mes >= '2024-05')
+    .filter(d => {
+      const currentMonth = new Date().toISOString().slice(0,7);
+      return d.mes >= '2024-05' && d.mes < currentMonth;
+    })
     .sort((a,b) => a.mes.localeCompare(b.mes));
 
   // Tiempo de vida — agrupar por rango
