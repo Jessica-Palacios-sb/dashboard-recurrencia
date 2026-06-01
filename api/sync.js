@@ -17,7 +17,7 @@ const ENDPOINTS = [
 const LOG_KEY = 'sync:log';
 const LOG_TTL = 604800; // 7 días
 
-async function verifyAuth(req) {
+async function verifyAuth(req, requireAdmin = false) {
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.authorization || '';
 
@@ -26,14 +26,15 @@ async function verifyAuth(req) {
     return { ok: true, type: 'cron' };
   }
 
-  // Sesión de super admin
+  // Sesión activa
   if (authHeader.startsWith('Bearer ')) {
     const token = authHeader.slice(7);
     const raw = await redis.get(`session:${token}`);
     if (raw) {
       const session = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      if (session.email === 'jpalacios@smartbeemo.com') {
-        return { ok: true, type: 'admin', email: session.email };
+      const isAdmin = session.email === 'jpalacios@smartbeemo.com';
+      if (!requireAdmin || isAdmin) {
+        return { ok: true, type: isAdmin ? 'admin' : 'user', email: session.email };
       }
     }
   }
@@ -91,16 +92,17 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const auth = await verifyAuth(req);
-  if (!auth.ok) return res.status(401).json({ error: 'No autorizado' });
-
   if (req.method === 'GET') {
+    const auth = await verifyAuth(req, false);
+    if (!auth.ok) return res.status(401).json({ error: 'No autorizado' });
     const raw = await redis.get(LOG_KEY);
     const log = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : null;
     return res.status(200).json({ ok: true, log });
   }
 
   if (req.method === 'POST') {
+    const auth = await verifyAuth(req, true);
+    if (!auth.ok) return res.status(401).json({ error: 'No autorizado' });
     const proto = req.headers['x-forwarded-proto'] || 'https';
     const baseUrl = `${proto}://${req.headers.host}`;
     const secret = process.env.CRON_SECRET;

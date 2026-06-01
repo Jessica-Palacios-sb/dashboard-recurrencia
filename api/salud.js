@@ -125,7 +125,7 @@ SELECT f.mes, f.pais_agrupado, f.tipo_pago,
   ROUND(SUM(f.retenido)*100.0/NULLIF(COUNT(DISTINCT f.student_id),0),1) AS tasa_retencion
 FROM flags f
 LEFT JOIN mrr m USING (mes, pais_agrupado, tipo_pago)
-WHERE f.mes < TO_CHAR(DATEADD('month',-1,DATE_TRUNC('month',GETDATE())),'YYYY-MM')
+WHERE f.mes < TO_CHAR(DATEADD('month',0,DATE_TRUNC('month',GETDATE())),'YYYY-MM')
 GROUP BY f.mes, f.pais_agrupado, f.tipo_pago, m.mrr
 ORDER BY 1,2,3;`),
 
@@ -231,7 +231,7 @@ SELECT
   p.perdidos
 FROM perdidos_agg p
 LEFT JOIN nuevos_agg n USING (mes, pais_agrupado, tipo_pago)
-WHERE p.mes < TO_CHAR(DATEADD('month',-1,DATE_TRUNC('month',GETDATE())),'YYYY-MM')
+WHERE p.mes < TO_CHAR(DATEADD('month',0,DATE_TRUNC('month',GETDATE())),'YYYY-MM')
 ORDER BY 1,2,3;`),
 
     ]);

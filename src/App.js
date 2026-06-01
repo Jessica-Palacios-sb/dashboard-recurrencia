@@ -2696,13 +2696,13 @@ function SyncTab({authUser}){
     <div style={{maxWidth:720,padding:'24px 0'}}>
       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:24,gap:16}}>
         <div>
-          <h2 style={{fontSize:20,fontWeight:700,margin:0,color:'#f1f5f9'}}>Sincronización de datos</h2>
-          <p style={{color:'rgba(255,255,255,0.4)',fontSize:13,margin:'4px 0 0'}}>
+          <h2 style={{fontSize:20,fontWeight:700,margin:0,color:'#111'}}>Sincronización de datos</h2>
+          <p style={{color:'#888',fontSize:13,margin:'4px 0 0'}}>
             Cron automático cada 4 horas · Los datos se sirven desde caché Redis
           </p>
         </div>
         <button onClick={handleSync} disabled={syncing} style={{
-          padding:'10px 20px',background:syncing?'rgba(99,102,241,0.4)':'#6366f1',
+          padding:'10px 20px',background:syncing?'rgba(99,102,241,0.5)':'#6366f1',
           border:'none',borderRadius:8,color:'#fff',fontWeight:600,fontSize:14,
           cursor:syncing?'not-allowed':'pointer',display:'flex',alignItems:'center',
           gap:8,minWidth:172,justifyContent:'center',flexShrink:0,
@@ -2715,25 +2715,25 @@ function SyncTab({authUser}){
       </div>
 
       {syncError&&(
-        <div style={{background:'rgba(239,68,68,0.12)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:8,padding:'10px 14px',marginBottom:16,color:'#fca5a5',fontSize:13}}>
+        <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'10px 14px',marginBottom:16,color:'#dc2626',fontSize:13}}>
           {syncError}
         </div>
       )}
 
       {log&&(
-        <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:10,padding:'12px 16px',marginBottom:20,fontSize:13,display:'flex',gap:24,flexWrap:'wrap'}}>
-          <span style={{color:'rgba(255,255,255,0.45)'}}>Estado:&nbsp;
-            <strong style={{color:statusColor[log.status]||'#94a3b8'}}>
+        <div style={{background:'#fff',border:'1px solid #e0e0e0',borderRadius:10,padding:'12px 16px',marginBottom:20,fontSize:13,display:'flex',gap:24,flexWrap:'wrap'}}>
+          <span style={{color:'#555'}}>Estado:&nbsp;
+            <strong style={{color:statusColor[log.status]||'#888'}}>
               {log.status==='ok'?'OK':log.status==='running'?'Ejecutando…':'Parcial'}
             </strong>
           </span>
-          <span style={{color:'rgba(255,255,255,0.45)'}}>Inicio:&nbsp;<strong style={{color:'#e2e8f0'}}>{fmtTs(log.startedAt)}</strong></span>
-          {log.completedAt&&<span style={{color:'rgba(255,255,255,0.45)'}}>Completado:&nbsp;<strong style={{color:'#e2e8f0'}}>{fmtTs(log.completedAt)}</strong></span>}
+          <span style={{color:'#555'}}>Inicio:&nbsp;<strong style={{color:'#111'}}>{fmtTs(log.startedAt)}</strong></span>
+          {log.completedAt&&<span style={{color:'#555'}}>Completado:&nbsp;<strong style={{color:'#111'}}>{fmtTs(log.completedAt)}</strong></span>}
         </div>
       )}
 
       {loadingStatus?(
-        <div style={{color:'rgba(255,255,255,0.25)',padding:'40px 0',textAlign:'center',fontSize:14}}>Cargando estado…</div>
+        <div style={{color:'#888',padding:'40px 0',textAlign:'center',fontSize:14}}>Cargando estado…</div>
       ):(
         <div style={{display:'flex',flexDirection:'column',gap:8}}>
           {Object.entries(LABELS).map(([key,label])=>{
@@ -2743,24 +2743,24 @@ function SyncTab({authUser}){
             return(
               <div key={key} style={{
                 display:'flex',alignItems:'center',
-                background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',
+                background:'#fff',border:'1px solid #e0e0e0',
                 borderRadius:8,padding:'12px 16px',gap:12,
               }}>
                 <span style={{
                   width:8,height:8,borderRadius:'50%',flexShrink:0,
-                  background:!ep?'rgba(255,255,255,0.15)':ok?'#34d399':'#f87171',
-                  boxShadow:ok?'0 0 6px #34d399':'none',
+                  background:!ep?'#d1d5db':ok?'#22c55e':'#ef4444',
+                  boxShadow:ok?'0 0 6px #22c55e55':'none',
                 }}/>
-                <span style={{flex:1,fontWeight:600,color:'#e2e8f0',fontSize:14}}>{label}</span>
+                <span style={{flex:1,fontWeight:600,color:'#111',fontSize:14}}>{label}</span>
                 {ep?(
                   <>
-                    <span style={{color:ok?'rgba(255,255,255,0.45)':'#fca5a5',fontSize:12,maxWidth:260,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                    <span style={{color:ok?'#555':'#dc2626',fontSize:12,maxWidth:260,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                       {ok?fmtTs(ep.syncedAt):`Error: ${ep.error}`}
                     </span>
-                    <span style={{color:'rgba(255,255,255,0.3)',fontSize:12,minWidth:48,textAlign:'right'}}>{fmtMs(ep.ms)}</span>
+                    <span style={{color:'#888',fontSize:12,minWidth:48,textAlign:'right'}}>{fmtMs(ep.ms)}</span>
                   </>
                 ):(
-                  <span style={{color:'rgba(255,255,255,0.2)',fontSize:12}}>Sin sincronizar</span>
+                  <span style={{color:'#aaa',fontSize:12}}>Sin sincronizar</span>
                 )}
               </div>
             );
@@ -2904,11 +2904,17 @@ function App({authUser, onLogout}){
   },[activeTab,cancelaciones,churn]);
 
   useEffect(()=>{
-    fetch(API_URL).then(r=>r.json()).then(({data,clientes,error})=>{
-      if(error)throw new Error(error);
-      setRaw(data||[]);
-      setClientesList(clientes||[]);
-      setLastUpdate(new Date());
+    const token=localStorage.getItem('auth_token');
+    const authHeader=token?{Authorization:`Bearer ${token}`}:{};
+    Promise.all([
+      fetch(API_URL).then(r=>r.json()),
+      fetch('/api/sync',{headers:authHeader}).then(r=>r.json()).catch(()=>null),
+    ]).then(([rec,sync])=>{
+      if(rec.error)throw new Error(rec.error);
+      setRaw(rec.data||[]);
+      setClientesList(rec.clientes||[]);
+      const completedAt=sync?.log?.completedAt;
+      setLastUpdate(completedAt?new Date(completedAt):new Date());
     }).catch(e=>setError(e.message)).finally(()=>setLoading(false));
   },[]);
 
