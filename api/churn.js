@@ -79,6 +79,7 @@ LEFT JOIN casos_cobranza cob ON s.id = cob.suscripcion AND cob.ultimo_caso = 1
 LEFT JOIN casos_chargeback ch  ON s.id = ch.suscripcion  AND ch.ultimo_caso = 1
 WHERE s.fecha_cancelacion IS NOT NULL
   AND s.fecha_cancelacion >= '2024-03-06'
+  AND s.fecha_cancelacion <= GETDATE()  
   AND LOWER(COALESCE(s.subscription_status,'')) NOT IN ('cotización expirada','cotizacion expirada','upgraded','')
   AND s.subscription_status IS NOT NULL
 GROUP BY DATE_TRUNC('month', s.fecha_cancelacion), e.pais_agrupado, 3
@@ -96,6 +97,7 @@ WITH base_activa AS (
   WHERE f.invoice_factura = 'invoice'
     AND f.fecha_pago IS NOT NULL
     AND f.fecha_pago >= '2024-03-06'
+    AND f.fecha_pago <= GETDATE()
     AND o.etapa IN ('Ganada Verificada', 'Closed Won')
     AND f.numero_invoice_factura >= 1
   GROUP BY DATE_TRUNC('month', f.fecha_pago)
@@ -320,7 +322,7 @@ const getRedis = () => {
   });
   return _redis;
 };
-const CACHE_KEY = 'cache:churn';
+const CACHE_KEY = 'cache:churn_v2';
 const CACHE_TTL = 18000;
 
 module.exports = async (req, res) => {
