@@ -107,6 +107,7 @@ cancelaciones_mes AS (
   FROM salesforce.tabla_core_suscripciones
   WHERE fecha_cancelacion IS NOT NULL
     AND fecha_cancelacion >= '2024-03-06'
+    AND fecha_cancelacion <= GETDATE()
     AND LOWER(COALESCE(subscription_status,'')) NOT IN ('cotización expirada','cotizacion expirada','upgraded','')
     AND subscription_status IS NOT NULL
   GROUP BY DATE_TRUNC('month', fecha_cancelacion)
