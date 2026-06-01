@@ -398,15 +398,27 @@ function NavTab({tabs, active, onChange, badges={}}){
 }
 
 function ChurnTab({data}){
+  const [desde, setDesde] = useState(null);
+  const [hasta, setHasta] = useState(null);
+
   const fmt    = n => n==null?'—':Number(n).toLocaleString('es-CO',{minimumFractionDigits:0,maximumFractionDigits:0});
   const fmtUSD = n => n==null?'—':'$'+Number(n).toLocaleString('es-CO',{minimumFractionDigits:0,maximumFractionDigits:0});
   const fmtPct = n => n==null?'—':Number(n).toFixed(1)+'%';
   const COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4'];
   const TIPO_C = {'Por mora':'#ef4444','Voluntaria':'#f59e0b','Chargeback':'#8b5cf6','Desenrolada':'#06b6d4','Otro':'#94a3b8'};
 
+  const isFiltered = (dateStr) => {
+    if (!dateStr) return false;
+    const d = dateStr.slice(0, 10);
+    if (desde && d < desde) return false;
+    if (hasta && d > hasta) return false;
+    return true;
+  };
+
   // Nuevos por mes (total)
   const nuevosMes = {};
   (data.nuevos||[]).forEach(r=>{
+    if(!isFiltered(r.mes)) return;
     if(!nuevosMes[r.mes])nuevosMes[r.mes]={mes:r.mes,nuevos:0,revenue:0};
     nuevosMes[r.mes].nuevos += +r.nuevos_clientes;
     nuevosMes[r.mes].revenue += +r.revenue;
@@ -415,6 +427,7 @@ function ChurnTab({data}){
   // Cancelaciones por mes (total)
   const cancelMes = {};
   (data.cancelaciones||[]).forEach(r=>{
+    if(!isFiltered(r.mes)) return;
     if(!cancelMes[r.mes])cancelMes[r.mes]={mes:r.mes,'Por mora':0,'Voluntaria':0,'Chargeback':0,'Desenrolada':0,total:0};
     const n = +r.cancelaciones;
     cancelMes[r.mes].total += n;
@@ -424,10 +437,6 @@ function ChurnTab({data}){
   // Flujo combinado
   const mesesSet = new Set([...Object.keys(nuevosMes), ...Object.keys(cancelMes)]);
   const flujoData = Array.from(mesesSet).sort()
-    .filter(m => {
-      const currentMonth = new Date().toISOString().slice(0,7);
-      return m >= '2024-05' && m < currentMonth;
-    })
     .map(m => ({
       mes: m,
       nuevos:     nuevosMes[m]?.nuevos || 0,
@@ -437,18 +446,11 @@ function ChurnTab({data}){
 
   // Tasa de churn por mes
   const tasaData = (data.tasaChurn||[])
-    .filter(r => {
-      const currentMonth = new Date().toISOString().slice(0,7);
-      return r.mes >= '2024-05' && r.mes < currentMonth;
-    })
+    .filter(r => isFiltered(r.mes))
     .map(r => ({mes:r.mes, tasa:+r.tasa_churn, clientes:+r.clientes_activos, cancelaciones:+r.cancelaciones}));
 
   // Cancelaciones apiladas por tipo y mes
   const cancelStack = Object.values(cancelMes)
-    .filter(d => {
-      const currentMonth = new Date().toISOString().slice(0,7);
-      return d.mes >= '2024-05' && d.mes < currentMonth;
-    })
     .sort((a,b) => a.mes.localeCompare(b.mes));
 
   // Tiempo de vida — agrupar por rango
@@ -465,6 +467,7 @@ function ChurnTab({data}){
   // Motivos top
   const motivosAgg = {};
   (data.motivos||[]).forEach(r=>{
+    if(!isFiltered(r.mes)) return;
     const k = r.motivo_cancelacion||'Sin motivo';
     if(!motivosAgg[k])motivosAgg[k]={motivo:k,casos:0};
     motivosAgg[k].casos += +r.casos;
@@ -490,10 +493,14 @@ function ChurnTab({data}){
   const totalCancel = Object.values(cancelMes).reduce((s,d)=>s+d.total,0);
   const avgTasa = tasaData.length>0 ? tasaData.reduce((s,d)=>s+d.tasa,0)/tasaData.length : 0;
   const lastTasa = tasaData.length>0 ? tasaData[tasaData.length-1] : null;
-  const totalPorMora = (data.cancelaciones||[]).filter(r=>r.tipo_cancelacion==='Por mora').reduce((s,r)=>s+(+r.cancelaciones),0);
+  const totalPorMora = (data.cancelaciones||[]).filter(r=>r.tipo_cancelacion==='Por mora' && isFiltered(r.mes)).reduce((s,r)=>s+(+r.cancelaciones),0);
 
   return(
     <>
+      <div style={{display:'flex', alignItems:'center', gap:12, marginBottom:20}}>
+        <MonthRangePicker value={{from:desde, to:hasta}} onChange={({from,to})=>{setDesde(from); setHasta(to);}}/>
+      </div>
+
       {/* KPIs */}
       <div className="kpi-grid">
         <div className="kpi-card">
