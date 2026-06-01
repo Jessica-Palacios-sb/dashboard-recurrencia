@@ -562,12 +562,13 @@ function ChurnTab({data}){
             <ComposedChart data={tasaData} margin={{left:10,right:20}}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb"/>
               <XAxis dataKey="mes" tick={{fontSize:10}}/>
-              <YAxis tickFormatter={v=>v+'%'} tick={{fontSize:11}}/>
+              <YAxis yAxisId="left" tick={{fontSize:11}}/>
+              <YAxis orientation="right" yAxisId="right" tickFormatter={v=>v+'%'} tick={{fontSize:11}} domain={[0, 'auto']}/>
               <Tooltip formatter={(v,n)=>n==='Tasa churn'?fmtPct(v):fmt(v)}/>
               <Legend/>
-              <Bar dataKey="cancelaciones" fill="#fca5a5" name="Cancelados (únicos)" radius={[4,4,0,0]}/>
-              <Line type="monotone" dataKey="tasa" stroke="#ef4444" strokeWidth={2.5} dot={{r:3}} name="Tasa churn"/>
-              <ReferenceLine y={5} stroke="#f59e0b" strokeDasharray="4 4" label={{value:'5%',position:'right',fontSize:11}}/>
+              <Bar dataKey="cancelaciones" fill="#fca5a5" name="Cancelados (únicos)" radius={[4,4,0,0]} yAxisId="left"/>
+              <Line type="monotone" dataKey="tasa" stroke="#ef4444" strokeWidth={2.5} dot={{r:3}} name="Tasa churn" yAxisId="right"/>
+              <ReferenceLine y={5} stroke="#f59e0b" strokeDasharray="4 4" label={{value:'5%',position:'right',fontSize:11}} yAxisId="right"/>
             </ComposedChart>
           </ResponsiveContainer>
         </section>
