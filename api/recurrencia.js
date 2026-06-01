@@ -159,7 +159,11 @@ module.exports = async (req, res) => {
         client.query(QUERY_CLIENTES),
       ]);
       const data = { data: r1.rows, clientes: r2.rows };
-      await redis.set(CACHE_KEY, JSON.stringify(data), { ex: CACHE_TTL });
+      try {
+        await redis.set(CACHE_KEY, JSON.stringify(data), { ex: CACHE_TTL });
+      } catch (redisErr) {
+        console.error('Redis cache set error (likely size limit):', redisErr.message);
+      }
       res.status(200).json(data);
     } finally {
       await client.end();
