@@ -400,7 +400,7 @@ GROUP BY DATE_TRUNC('month', fecha_cierre), pais_agrupado ORDER BY mes;`),
 
   {
     name: 'churn',
-    cacheKey: 'cache:churn',
+    cacheKey: 'cache:churn_v2',
     async run(client) {
       const [r1, r2, r3, r4, r5, r6] = await Promise.all([
         client.query(`

@@ -1,6 +1,6 @@
 const { Client } = require('pg');
 const { Redis } = require('@upstash/redis');
-const { readCache } = require('./_cache');
+const { readCache, writeCache } = require('./_cache');
 
 const getClient = () => new Client({
   host: process.env.REDSHIFT_HOST,
@@ -139,25 +139,32 @@ const CACHE_TTL = 18000;
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 's-maxage=0, stale-while-revalidate=0');
+  res.setHeader('Cache-Control', 's-maxage=14400, stale-while-revalidate=3600');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
+  const redis = getRedis();
+  const isSyncReq = req.headers['x-sync-secret'] === process.env.CRON_SECRET;
+  if (!isSyncReq) {
+    const cached = await readCache(redis, CACHE_KEY);
+    if (cached) return res.status(200).json(cached);
+  }
+
+  const client = getClient();
   try {
-    const client = getClient();
-    try {
-      await client.connect();
-      const [r1, r2] = await Promise.all([
-        client.query(QUERY_MONTHLY),
-        client.query(QUERY_CLIENTES),
-      ]);
-      const data = { data: r1.rows, clientes: r2.rows };
-      res.status(200).json(data);
-    } finally {
-      await client.end();
-    }
+    await client.connect();
+    const [r1, r2] = await Promise.all([
+      client.query(QUERY_MONTHLY),
+      client.query(QUERY_CLIENTES),
+    ]);
+    const data = { data: r1.rows, clientes: r2.rows };
+    // writeCache comprime con gzip: el payload (~10MB) supera el límite de Upstash sin comprimir.
+    await writeCache(redis, CACHE_KEY, data, CACHE_TTL);
+    res.status(200).json(data);
   } catch (err) {
     console.error('recurrencia error:', err.message);
     res.status(500).json({ error: err.message });
+  } finally {
+    await client.end();
   }
 };
