@@ -407,9 +407,11 @@ function ChurnTab({data}){
   const COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4'];
   const TIPO_C = {'Por mora':'#ef4444','Voluntaria':'#f59e0b','Chargeback':'#8b5cf6','Desenrolada':'#06b6d4','Otro':'#94a3b8'};
 
+  const HOY_MES = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
   const isFiltered = (dateStr) => {
     if (!dateStr) return false;
     const d = dateStr.slice(0, 10);
+    if (d.slice(0, 7) > HOY_MES) return false; // nunca mostrar meses futuros
     if (desde && d < desde) return false;
     if (hasta && d > hasta) return false;
     return true;

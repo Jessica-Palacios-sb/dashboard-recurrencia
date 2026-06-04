@@ -425,12 +425,12 @@ SELECT TO_CHAR(DATE_TRUNC('month', s.fecha_cancelacion), 'YYYY-MM') AS mes,
 FROM subs_base s LEFT JOIN salesforce.tabla_core_estudiantes e ON s.student_id = e.student_id
 LEFT JOIN casos_cobranza cob ON s.id = cob.suscripcion AND cob.ultimo_caso = 1
 LEFT JOIN casos_chargeback ch ON s.id = ch.suscripcion AND ch.ultimo_caso = 1
-WHERE s.fecha_cancelacion IS NOT NULL AND s.fecha_cancelacion >= '2024-03-06'
+WHERE s.fecha_cancelacion IS NOT NULL AND s.fecha_cancelacion >= '2024-03-06' AND s.fecha_cancelacion <= GETDATE()
   AND LOWER(COALESCE(s.subscription_status,'')) NOT IN ('cotización expirada','cotizacion expirada','upgraded','') AND s.subscription_status IS NOT NULL
 GROUP BY DATE_TRUNC('month', s.fecha_cancelacion), e.pais_agrupado, 3 ORDER BY mes;`),
         client.query(`
-WITH base_activa AS (SELECT TO_CHAR(DATE_TRUNC('month', f.fecha_pago), 'YYYY-MM') AS mes, COUNT(DISTINCT f.student_id) AS clientes_activos FROM salesforce.tabla_core_invoices_facturas f LEFT JOIN salesforce.tabla_core_oportunidades o ON f.id_oportunidad = o.id WHERE f.invoice_factura = 'invoice' AND f.fecha_pago IS NOT NULL AND f.fecha_pago >= '2024-03-06' AND o.etapa IN ('Ganada Verificada', 'Closed Won') AND f.numero_invoice_factura >= 1 GROUP BY DATE_TRUNC('month', f.fecha_pago)),
-cancelaciones_mes AS (SELECT TO_CHAR(DATE_TRUNC('month', fecha_cancelacion), 'YYYY-MM') AS mes, COUNT(*) AS cancelaciones FROM salesforce.tabla_core_suscripciones WHERE fecha_cancelacion IS NOT NULL AND fecha_cancelacion >= '2024-03-06' AND LOWER(COALESCE(subscription_status,'')) NOT IN ('cotización expirada','cotizacion expirada','upgraded','') AND subscription_status IS NOT NULL GROUP BY DATE_TRUNC('month', fecha_cancelacion))
+WITH base_activa AS (SELECT TO_CHAR(DATE_TRUNC('month', f.fecha_pago), 'YYYY-MM') AS mes, COUNT(DISTINCT f.student_id) AS clientes_activos FROM salesforce.tabla_core_invoices_facturas f LEFT JOIN salesforce.tabla_core_oportunidades o ON f.id_oportunidad = o.id WHERE f.invoice_factura = 'invoice' AND f.fecha_pago IS NOT NULL AND f.fecha_pago >= '2024-03-06' AND f.fecha_pago <= GETDATE() AND o.etapa IN ('Ganada Verificada', 'Closed Won') AND f.numero_invoice_factura >= 1 GROUP BY DATE_TRUNC('month', f.fecha_pago)),
+cancelaciones_mes AS (SELECT TO_CHAR(DATE_TRUNC('month', fecha_cancelacion), 'YYYY-MM') AS mes, COUNT(*) AS cancelaciones FROM salesforce.tabla_core_suscripciones WHERE fecha_cancelacion IS NOT NULL AND fecha_cancelacion >= '2024-03-06' AND fecha_cancelacion <= GETDATE() AND LOWER(COALESCE(subscription_status,'')) NOT IN ('cotización expirada','cotizacion expirada','upgraded','') AND subscription_status IS NOT NULL GROUP BY DATE_TRUNC('month', fecha_cancelacion))
 SELECT b.mes, b.clientes_activos, COALESCE(c.cancelaciones,0) AS cancelaciones, ROUND(COALESCE(c.cancelaciones,0)*100.0/NULLIF(b.clientes_activos,0),2) AS tasa_churn FROM base_activa b LEFT JOIN cancelaciones_mes c ON b.mes = c.mes ORDER BY b.mes;`),
         client.query(`
 SELECT TO_CHAR(DATE_TRUNC('month', c.fecha_cierre), 'YYYY-MM') AS mes, c.motivo_cancelacion, c.sub_motivo_cancelacion, c.tipo_cancelacion, COUNT(*) AS casos,
@@ -442,7 +442,7 @@ GROUP BY DATE_TRUNC('month', c.fecha_cierre), c.motivo_cancelacion, c.sub_motivo
 WITH activos_pais AS (
   SELECT CASE WHEN e.pais_agrupado IN ('México','Mexico') THEN 'México' WHEN e.pais_agrupado = 'Colombia' THEN 'Colombia' WHEN e.pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos' ELSE 'Otros' END AS pais_agrupado, COUNT(DISTINCT f.student_id) AS clientes_totales
   FROM salesforce.tabla_core_invoices_facturas f LEFT JOIN salesforce.tabla_core_oportunidades o ON f.id_oportunidad = o.id LEFT JOIN salesforce.tabla_core_estudiantes e ON f.student_id = e.student_id
-  WHERE f.invoice_factura = 'invoice' AND f.fecha_pago IS NOT NULL AND f.fecha_pago >= '2024-03-06' AND o.etapa IN ('Ganada Verificada', 'Closed Won') AND f.numero_invoice_factura >= 1 GROUP BY e.pais_agrupado
+  WHERE f.invoice_factura = 'invoice' AND f.fecha_pago IS NOT NULL AND f.fecha_pago >= '2024-03-06' AND o.etapa IN ('Ganada Verificada', 'Closed Won') AND f.numero_invoice_factura >= 1 GROUP BY 1
 ),
 cancel_pais AS (
   SELECT CASE WHEN e.pais_agrupado IN ('México','Mexico') THEN 'México' WHEN e.pais_agrupado = 'Colombia' THEN 'Colombia' WHEN e.pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos' ELSE 'Otros' END AS pais_agrupado,
@@ -452,7 +452,7 @@ cancel_pais AS (
   FROM salesforce.tabla_core_suscripciones s LEFT JOIN salesforce.tabla_core_estudiantes e ON s.student_id = e.student_id
   LEFT JOIN (SELECT suscripcion, status, ROW_NUMBER() OVER(PARTITION BY suscripcion ORDER BY fecha_cierre DESC) AS ult FROM salesforce.tabla_intermedia_casos_cobranza) cob ON s.id = cob.suscripcion AND cob.ult = 1
   LEFT JOIN (SELECT suscripcion, numero_caso, ROW_NUMBER() OVER(PARTITION BY suscripcion ORDER BY fecha_cierre_real DESC) AS ult FROM salesforce.tabla_core_casos WHERE status = 'Cancelado' AND id_registro_caso = '012UH000001iGJpYAM') ch ON s.id = ch.suscripcion AND ch.ult = 1
-  WHERE s.fecha_cancelacion IS NOT NULL AND s.fecha_cancelacion >= '2024-03-06' AND LOWER(COALESCE(s.subscription_status,'')) NOT IN ('cotización expirada','cotizacion expirada','upgraded','') AND s.subscription_status IS NOT NULL GROUP BY e.pais_agrupado
+  WHERE s.fecha_cancelacion IS NOT NULL AND s.fecha_cancelacion >= '2024-03-06' AND s.fecha_cancelacion <= GETDATE() AND LOWER(COALESCE(s.subscription_status,'')) NOT IN ('cotización expirada','cotizacion expirada','upgraded','') AND s.subscription_status IS NOT NULL GROUP BY 1
 )
 SELECT a.pais_agrupado, a.clientes_totales, COALESCE(c.cancelaciones,0) AS cancelaciones, COALESCE(c.por_mora,0) AS por_mora, COALESCE(c.voluntaria,0) AS voluntaria, ROUND(COALESCE(c.cancelaciones,0)*100.0/NULLIF(a.clientes_totales,0),1) AS tasa_churn_pct
 FROM activos_pais a LEFT JOIN cancel_pais c ON a.pais_agrupado = c.pais_agrupado WHERE a.pais_agrupado IS NOT NULL ORDER BY cancelaciones DESC;`),
@@ -471,7 +471,7 @@ cancelaciones AS (
   FROM salesforce.tabla_core_suscripciones s JOIN primera_suscripcion p ON s.student_id = p.student_id
   LEFT JOIN casos_cobranza cob ON s.id = cob.suscripcion AND cob.ultimo_caso = 1
   LEFT JOIN casos_chargeback ch ON s.id = ch.suscripcion AND ch.ultimo_caso = 1
-  WHERE s.fecha_cancelacion IS NOT NULL AND s.fecha_cancelacion >= '2024-03-06'
+  WHERE s.fecha_cancelacion IS NOT NULL AND s.fecha_cancelacion >= '2024-03-06' AND s.fecha_cancelacion <= GETDATE()
     AND LOWER(COALESCE(s.subscription_status,'')) NOT IN ('cotización expirada','cotizacion expirada','upgraded','') AND s.subscription_status IS NOT NULL
     AND DATEDIFF('month', p.primera_fecha, s.fecha_cancelacion) >= 0 AND DATEDIFF('month', p.primera_fecha, s.fecha_cancelacion) <= 60
 ),
