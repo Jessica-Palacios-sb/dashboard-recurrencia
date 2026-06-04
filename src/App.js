@@ -897,9 +897,13 @@ function CancelacionesTab({data, nuevos=[]}){
   const COLORS=['#ef4444','#f59e0b','#8b5cf6','#06b6d4','#6366f1','#10b981'];
   const TIPO_COLORS={'Por mora':'#ef4444','Voluntaria':'#f59e0b','Chargeback':'#8b5cf6','Desenrolada':'#06b6d4','Otro':'#94a3b8'};
 
+  // Filtro por tipo de pago — afecta toda la pestaña
+  const [tipoPago,setTipoPago]=useState('Todos');
+  const pasaTP = r => tipoPago==='Todos' || r.tipo_pago===tipoPago;
+
   // Totales por tipo de cancelación
   const porTipo = {};
-  data.filter(r=>r.tipo_cancelacion!=='Otro'&&r.mes_cancelacion).forEach(r=>{
+  data.filter(r=>r.tipo_cancelacion!=='Otro'&&r.mes_cancelacion&&pasaTP(r)).forEach(r=>{
     const k=r.tipo_cancelacion;
     if(!porTipo[k])porTipo[k]={name:k,n:0};
     porTipo[k].n+=+r.suscripciones;
@@ -909,7 +913,7 @@ function CancelacionesTab({data, nuevos=[]}){
 
   // Cancelaciones por mes (mora vs voluntaria)
   const mesCancelData={};
-  data.filter(r=>r.mes_cancelacion&&r.mes_cancelacion>='2024-05'&&r.mes_cancelacion<=new Date().toISOString().slice(0,7)).forEach(r=>{
+  data.filter(r=>r.mes_cancelacion&&r.mes_cancelacion>='2024-05'&&r.mes_cancelacion<=new Date().toISOString().slice(0,7)&&pasaTP(r)).forEach(r=>{
     const m=r.mes_cancelacion;
     if(!mesCancelData[m])mesCancelData[m]={mes:m,'Por mora':0,'Voluntaria':0,'Chargeback':0,'Desenrolada':0,total:0};
     const n=+r.suscripciones;
@@ -918,25 +922,23 @@ function CancelacionesTab({data, nuevos=[]}){
   });
   const mesCancelArr=Object.values(mesCancelData).sort((a,b)=>a.mes.localeCompare(b.mes));
 
-  // Duración hasta cancelación
+  // Duración hasta cancelación — desglose por mes 1-6 e individual, agrupando +6
   const duracionBuckets=[
-    {rango:'Mes 1',n:0},{rango:'Mes 2-3',n:0},{rango:'Mes 4-6',n:0},
-    {rango:'Mes 7-12',n:0},{rango:'+12 meses',n:0}
+    {rango:'Mes 1',n:0},{rango:'Mes 2',n:0},{rango:'Mes 3',n:0},
+    {rango:'Mes 4',n:0},{rango:'Mes 5',n:0},{rango:'Mes 6',n:0},{rango:'+6 meses',n:0}
   ];
-  data.filter(r=>r.mes_cancelacion&&r.mes_inicio).forEach(r=>{
-    const meses=+r.avg_meses_activo;
+  data.filter(r=>r.mes_cancelacion&&r.mes_inicio&&pasaTP(r)).forEach(r=>{
+    const meses=+r.meses_vida_real;
     const n=+r.suscripciones;
-    if(meses<=1) duracionBuckets[0].n+=n;
-    else if(meses<=3) duracionBuckets[1].n+=n;
-    else if(meses<=6) duracionBuckets[2].n+=n;
-    else if(meses<=12) duracionBuckets[3].n+=n;
-    else duracionBuckets[4].n+=n;
+    if(meses<=1) duracionBuckets[0].n+=n;       // Mes 1 = 0-1 meses de vida
+    else if(meses<=6) duracionBuckets[meses-1].n+=n; // Mes 2..6
+    else duracionBuckets[6].n+=n;               // +6 meses
   });
   const totalDur=duracionBuckets.reduce((s,d)=>s+d.n,0);
 
   // Cancelaciones por país
   const porPais={};
-  data.filter(r=>r.mes_cancelacion&&r.pais_agrupado).forEach(r=>{
+  data.filter(r=>r.mes_cancelacion&&r.pais_agrupado&&pasaTP(r)).forEach(r=>{
     const k=r.pais_agrupado||'Sin dato';
     if(!porPais[k])porPais[k]={pais:k,total:0,mora:0};
     porPais[k].total+=+r.suscripciones;
@@ -950,7 +952,7 @@ function CancelacionesTab({data, nuevos=[]}){
   const nuevasMes={};
   nuevos.forEach(r=>{
     const m=r.mes;
-    if(!m||m<'2024-05'||m>new Date().toISOString().slice(0,7))return;
+    if(!m||m<'2024-05'||m>new Date().toISOString().slice(0,7)||!pasaTP(r))return;
     if(!nuevasMes[m])nuevasMes[m]={mes:m,nuevas:0,canceladas:0};
     nuevasMes[m].nuevas+=+r.nuevos_clientes;
   });
@@ -965,8 +967,8 @@ function CancelacionesTab({data, nuevos=[]}){
   // KPIs
   const moraPct=porTipo['Por mora']?porTipo['Por mora'].n/totalCancel*100:0;
   const voluntariaPct=porTipo['Voluntaria']?porTipo['Voluntaria'].n/totalCancel*100:0;
-  const avgMeses=data.filter(r=>r.mes_cancelacion).reduce((s,r)=>s+(+r.avg_meses_activo * +r.suscripciones),0)/
-    (data.filter(r=>r.mes_cancelacion).reduce((s,r)=>s+(+r.suscripciones),0)||1);
+  const avgMeses=data.filter(r=>r.mes_cancelacion&&pasaTP(r)).reduce((s,r)=>s+(+r.avg_meses_activo * +r.suscripciones),0)/
+    (data.filter(r=>r.mes_cancelacion&&pasaTP(r)).reduce((s,r)=>s+(+r.suscripciones),0)||1);
 
   // Bucket más crítico (mayor volumen) y su % real
   const bucketMax = duracionBuckets.reduce((m,b)=>b.n>m.n?b:m, duracionBuckets[0]);
@@ -974,6 +976,16 @@ function CancelacionesTab({data, nuevos=[]}){
 
   return(
     <>
+      {/* Filtro tipo de pago */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:10,marginBottom:14}}>
+        <span style={{fontSize:13,color:'#555',fontWeight:600}}>Tipo de pago:</span>
+        <div className="gran-selector">
+          {['Todos','Cuotas','Recurrencia'].map(o=>(
+            <button key={o} className={`gran-btn${tipoPago===o?' active':''}`} onClick={()=>setTipoPago(o)}>{o}</button>
+          ))}
+        </div>
+      </div>
+
       {/* KPIs */}
       <div className="kpi-grid">
         <div className="kpi-card">
@@ -1045,7 +1057,7 @@ function CancelacionesTab({data, nuevos=[]}){
               <YAxis tickFormatter={v=>fmt(v)} tick={{fontSize:11}}/>
               <Tooltip formatter={v=>[fmt(v)+' cancelaciones', 'Cantidad']}/>
               <Bar dataKey="n" name="Cancelados (únicos)" radius={[4,4,0,0]}>
-                {duracionBuckets.map((_,i)=><Cell key={i} fill={i<=1?'#ef4444':i<=2?'#f59e0b':'#10b981'}/>)}
+                {duracionBuckets.map((_,i)=><Cell key={i} fill={i<=1?'#ef4444':i<=3?'#f59e0b':'#10b981'}/>)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>

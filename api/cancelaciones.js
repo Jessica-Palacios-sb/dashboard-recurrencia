@@ -39,17 +39,21 @@ WITH subs_filtradas AS (
     AND zuora__status__c = 'Cancelled'
 ),
 primera_suscripcion AS (
-  SELECT
-    student_id,
-    MIN(fecha_cierre) AS primera_fecha
-  FROM salesforce.tabla_core_oportunidades
-  WHERE etapa = 'Ganada Verificada'
-    AND (
-      (sub_tipo_venta LIKE '%Bootcamp%' AND tipo_pago = 'Cuotas')
-      OR sub_tipo_venta LIKE '%Suscripción smartBeemo%'
-      OR (sub_tipo_venta = 'Mentoría' AND tipo_pago = 'Cuotas')
-    )
-  GROUP BY student_id
+  SELECT student_id, primera_fecha, tipo_pago_grp
+  FROM (
+    SELECT
+      student_id,
+      fecha_cierre AS primera_fecha,
+      CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago_grp,
+      ROW_NUMBER() OVER (PARTITION BY student_id ORDER BY fecha_cierre ASC) AS rn
+    FROM salesforce.tabla_core_oportunidades
+    WHERE etapa = 'Ganada Verificada'
+      AND (
+        (sub_tipo_venta LIKE '%Bootcamp%' AND tipo_pago = 'Cuotas')
+        OR sub_tipo_venta LIKE '%Suscripción smartBeemo%'
+        OR (sub_tipo_venta = 'Mentoría' AND tipo_pago = 'Cuotas')
+      )
+  ) WHERE rn = 1
 ),
 casos_cobranza AS (
   SELECT suscripcion, status,
@@ -67,6 +71,7 @@ cancelaciones_clasificadas AS (
   -- y cruzamos con los que tienen cancelaciones
   SELECT
     p.student_id,
+    p.tipo_pago_grp                            AS tipo_pago,
     DATE_TRUNC('month', s.fecha_cancelacion)  AS mes_cancel,
     DATE_TRUNC('month', p.primera_fecha)       AS mes_inicio,
     DATEDIFF('month', p.primera_fecha, s.fecha_cancelacion) AS meses_vida,
@@ -107,13 +112,14 @@ SELECT
   TO_CHAR(mes_cancel, 'YYYY-MM') AS mes_cancelacion,
   TO_CHAR(mes_inicio, 'YYYY-MM') AS mes_inicio,
   tipo_cancelacion,
+  tipo_pago,
   pais_agrupado,
   meses_vida                     AS meses_vida_real,
   COUNT(*)                       AS suscripciones,
   AVG(meses_vida)                AS avg_meses_activo
 FROM cancelaciones_clasificadas
 WHERE rn_cliente_mes = 1
-GROUP BY mes_cancel, mes_inicio, tipo_cancelacion, pais_agrupado, meses_vida
+GROUP BY mes_cancel, mes_inicio, tipo_cancelacion, tipo_pago, pais_agrupado, meses_vida
 ORDER BY mes_cancelacion, mes_inicio;
 `;
 
@@ -128,9 +134,10 @@ SELECT
     WHEN pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos'
     ELSE 'Otros'
   END AS pais_agrupado,
+  CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago,
   COUNT(DISTINCT student_id) AS nuevos_clientes
 FROM (
-  SELECT o.student_id, o.fecha_cierre, e.pais_agrupado,
+  SELECT o.student_id, o.fecha_cierre, o.tipo_pago, e.pais_agrupado,
     ROW_NUMBER() OVER(PARTITION BY o.student_id ORDER BY o.fecha_cierre ASC) AS orden
   FROM salesforce.tabla_core_oportunidades o
   LEFT JOIN salesforce.tabla_core_estudiantes e ON o.student_id = e.student_id
@@ -144,7 +151,7 @@ FROM (
     AND o.fecha_cierre >= '2024-03-06'
 )
 WHERE orden = 1
-GROUP BY DATE_TRUNC('month', fecha_cierre), pais_agrupado
+GROUP BY DATE_TRUNC('month', fecha_cierre), pais_agrupado, 3
 ORDER BY mes;
 `;
 

@@ -356,14 +356,18 @@ WITH subs_filtradas AS (
   WHERE isdeleted = false AND rn = 1 AND zuora__cancelleddate__c >= '2024-05-01' AND zuora__status__c = 'Cancelled'
 ),
 primera_suscripcion AS (
-  SELECT student_id, MIN(fecha_cierre) AS primera_fecha FROM salesforce.tabla_core_oportunidades
-  WHERE etapa = 'Ganada Verificada' AND ((sub_tipo_venta LIKE '%Bootcamp%' AND tipo_pago = 'Cuotas') OR sub_tipo_venta LIKE '%Suscripción smartBeemo%' OR (sub_tipo_venta = 'Mentoría' AND tipo_pago = 'Cuotas'))
-  GROUP BY student_id
+  SELECT student_id, primera_fecha, tipo_pago_grp FROM (
+    SELECT student_id, fecha_cierre AS primera_fecha,
+      CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago_grp,
+      ROW_NUMBER() OVER (PARTITION BY student_id ORDER BY fecha_cierre ASC) AS rn
+    FROM salesforce.tabla_core_oportunidades
+    WHERE etapa = 'Ganada Verificada' AND ((sub_tipo_venta LIKE '%Bootcamp%' AND tipo_pago = 'Cuotas') OR sub_tipo_venta LIKE '%Suscripción smartBeemo%' OR (sub_tipo_venta = 'Mentoría' AND tipo_pago = 'Cuotas'))
+  ) WHERE rn = 1
 ),
 casos_cobranza AS (SELECT suscripcion, status, ROW_NUMBER() OVER(PARTITION BY suscripcion ORDER BY fecha_cierre DESC) AS rn FROM salesforce.tabla_intermedia_casos_cobranza),
 casos_chargeback AS (SELECT suscripcion, numero_caso, ROW_NUMBER() OVER(PARTITION BY suscripcion ORDER BY fecha_cierre_real DESC) AS rn FROM salesforce.tabla_core_casos WHERE status = 'Cancelado' AND id_registro_caso = '012UH000001iGJpYAM'),
 cancelaciones_clasificadas AS (
-  SELECT p.student_id, DATE_TRUNC('month', s.fecha_cancelacion) AS mes_cancel,
+  SELECT p.student_id, p.tipo_pago_grp AS tipo_pago, DATE_TRUNC('month', s.fecha_cancelacion) AS mes_cancel,
     DATE_TRUNC('month', p.primera_fecha) AS mes_inicio,
     DATEDIFF('month', p.primera_fecha, s.fecha_cancelacion) AS meses_vida,
     CASE WHEN ch.numero_caso IS NOT NULL THEN 'Chargeback' WHEN cob.status = 'Cerrado - Cartera Irrecuperable' THEN 'Por mora' WHEN LOWER(s.subscription_status) IN ('cancelada por no pago','suspendida por no pago','cancelada por pago de saldo pendiente') THEN 'Por mora' WHEN LOWER(s.subscription_status) IN ('chargeback','cancelación chargeback prevention','cancelación por chargeback prevention') THEN 'Chargeback' WHEN LOWER(s.subscription_status) IN ('cancelación programada','cancelacion programada','cancelación con reembolso','suscripción cancelada') THEN 'Voluntaria' WHEN LOWER(s.subscription_status) = 'suscripción cancelada desenrolada' THEN 'Desenrolada' ELSE 'Otro' END AS tipo_cancelacion,
@@ -375,16 +379,17 @@ cancelaciones_clasificadas AS (
   LEFT JOIN casos_chargeback ch ON s.id = ch.suscripcion AND ch.rn = 1
 )
 SELECT TO_CHAR(mes_cancel,'YYYY-MM') AS mes_cancelacion, TO_CHAR(mes_inicio,'YYYY-MM') AS mes_inicio,
-  tipo_cancelacion, pais_agrupado, meses_vida AS meses_vida_real,
+  tipo_cancelacion, tipo_pago, pais_agrupado, meses_vida AS meses_vida_real,
   COUNT(*) AS suscripciones, AVG(meses_vida) AS avg_meses_activo
 FROM cancelaciones_clasificadas WHERE rn_cliente_mes = 1
-GROUP BY mes_cancel, mes_inicio, tipo_cancelacion, pais_agrupado, meses_vida ORDER BY mes_cancelacion, mes_inicio;`),
+GROUP BY mes_cancel, mes_inicio, tipo_cancelacion, tipo_pago, pais_agrupado, meses_vida ORDER BY mes_cancelacion, mes_inicio;`),
         client.query(`
 SELECT TO_CHAR(DATE_TRUNC('month', fecha_cierre), 'YYYY-MM') AS mes,
   CASE WHEN pais_agrupado IN ('México','Mexico') THEN 'México' WHEN pais_agrupado = 'Colombia' THEN 'Colombia' WHEN pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos' ELSE 'Otros' END AS pais_agrupado,
+  CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago,
   COUNT(DISTINCT student_id) AS nuevos_clientes
 FROM (
-  SELECT o.student_id, o.fecha_cierre, e.pais_agrupado,
+  SELECT o.student_id, o.fecha_cierre, o.tipo_pago, e.pais_agrupado,
     ROW_NUMBER() OVER(PARTITION BY o.student_id ORDER BY o.fecha_cierre ASC) AS orden
   FROM salesforce.tabla_core_oportunidades o
   LEFT JOIN salesforce.tabla_core_estudiantes e ON o.student_id = e.student_id
@@ -392,7 +397,7 @@ FROM (
     AND ((o.sub_tipo_venta LIKE '%Bootcamp%' AND o.tipo_pago = 'Cuotas') OR o.sub_tipo_venta LIKE '%Suscripción smartBeemo%' OR (o.sub_tipo_venta = 'Mentoría' AND o.tipo_pago = 'Cuotas'))
     AND o.fecha_cierre >= '2024-03-06'
 ) WHERE orden = 1
-GROUP BY DATE_TRUNC('month', fecha_cierre), pais_agrupado ORDER BY mes;`),
+GROUP BY DATE_TRUNC('month', fecha_cierre), pais_agrupado, 3 ORDER BY mes;`),
       ]);
       return { data: r1.rows, nuevos: r2.rows };
     },
