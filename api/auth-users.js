@@ -94,7 +94,8 @@ module.exports = async (req, res) => {
       user.pestanas = req.body.pestanas;
     } else if (action === 'reset_password') {
       const crypto = require('crypto');
-      const tempPassword = 'Beemo2024';
+      const tempPassword = (req.body.tempPassword || 'Beemo2024').toString();
+      if (tempPassword.length < 6) return res.status(400).json({ error: 'La contraseña temporal debe tener al menos 6 caracteres' });
       user.password = crypto.createHash('sha256').update(tempPassword).digest('hex');
       user.must_change_password = true;
     } else {

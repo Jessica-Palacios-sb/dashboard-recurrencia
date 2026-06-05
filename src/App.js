@@ -2453,6 +2453,25 @@ function UsuariosTab({currentUser}){
     finally{ setActionLoading(''); }
   };
 
+  const handleReset = async(u)=>{
+    const tempPassword = window.prompt(`Contraseña temporal para ${u.nombre} (mín. 6 caracteres):`);
+    if(tempPassword===null) return; // canceló
+    if(tempPassword.length<6){ alert('La contraseña temporal debe tener al menos 6 caracteres'); return; }
+    setActionLoading(u.email+'reset_password');
+    try{
+      const token = localStorage.getItem('auth_token');
+      const r = await fetch('/api/auth-users',{
+        method:'POST', headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},
+        body: JSON.stringify({email:u.email, action:'reset_password', tempPassword})
+      });
+      const d = await r.json();
+      if(!r.ok) throw new Error(d.error);
+      await fetchUsers();
+      alert(`Listo ✅\n\nComparte esta clave temporal con ${u.nombre}:\n\n    ${tempPassword}\n\nDeberá cambiarla al ingresar al panel.`);
+    } catch(err){ alert(err.message); }
+    finally{ setActionLoading(''); }
+  };
+
   const estadoBadge = estado=>{
     const cfg = {
       pendiente:  {bg:'#fef9c3',color:'#854d0e',label:'Pendiente'},
@@ -2542,8 +2561,9 @@ function UsuariosTab({currentUser}){
                               <option value="viewer">Viewer</option>
                               <option value="admin">Admin</option>
                             </select>
-                            <button onClick={()=>{ if(window.confirm(`¿Resetear contraseña de ${u.nombre}? Le llegará una contraseña temporal por email.`)) handleAction(u.email,'reset_password'); }}
+                            <button onClick={()=>handleReset(u)}
                               disabled={!!actionLoading}
+                              title="Asignar una contraseña temporal; el usuario deberá cambiarla al ingresar"
                               style={{padding:'4px 10px',background:'#fef9c3',border:'1px solid #fde68a',borderRadius:6,fontSize:12,fontWeight:600,color:'#854d0e',cursor:'pointer'}}>
                               🔑 Reset
                             </button>
