@@ -2868,12 +2868,46 @@ function App({authUser, onLogout}){
       agg[r.mes].retenidos += +r.retenidos;
     });
     const meses=Object.keys(agg).sort();
-    if(!meses.length) return null;
-    const ultimo=agg[meses[meses.length-1]];
-    const tasa=ultimo.clientes>0?Math.round(ultimo.retenidos/ultimo.clientes*100):0;
+    if(meses.length<2) return null;
+    // Penúltimo mes (el último cerrado con señal de retención), igual que "Retención último mes" del tab.
+    const ref=agg[meses[meses.length-2]];
+    const tasa=ref.clientes>0?Math.round(ref.retenidos/ref.clientes*100):0;
     return tasa+'%';
   },[saludRetencion]);
-  const NAV_BADGES = {'Upgrades':'18.6%','Salud':saludBadge,'Cancelaciones':'50%','Churn':'8.5%'};
+  // Badge Cancelaciones: % por mora (igual que moraPct del tab)
+  const cancelBadge = useMemo(()=>{
+    const rows=(cancelaciones?.data||[]).filter(r=>r.tipo_cancelacion!=='Otro'&&r.mes_cancelacion);
+    if(!rows.length) return null;
+    const tot=rows.reduce((s,r)=>s+(+r.suscripciones),0);
+    const mora=rows.filter(r=>r.tipo_cancelacion==='Por mora').reduce((s,r)=>s+(+r.suscripciones),0);
+    return tot>0?Math.round(mora/tot*100)+'%':null;
+  },[cancelaciones]);
+  // Badge Churn: tasa de churn promedio mensual (igual que avgTasa del tab)
+  const churnBadge = useMemo(()=>{
+    const hoy=new Date().toISOString().slice(0,7);
+    const vals=(churn?.tasaChurn||[]).filter(r=>r.mes&&r.mes<=hoy).map(r=>+r.tasa_churn);
+    if(!vals.length) return null;
+    return (vals.reduce((s,v)=>s+v,0)/vals.length).toFixed(1)+'%';
+  },[churn]);
+  // Badge Upgrades: % del cobro que viene de upgrades en el último mes cerrado
+  const upgradeBadge = useMemo(()=>{
+    if(!raw||!raw.length) return null;
+    const hoy=new Date().toISOString().slice(0,7);
+    const byMes={};
+    raw.forEach(r=>{
+      const m=(r.mes||'').slice(0,7);
+      if(!m||m>=hoy) return;
+      if(!byMes[m]) byMes[m]={tot:0,upg:0};
+      const v=+r.payment_amount_usd||0;
+      byMes[m].tot+=v;
+      if(r.es_upgrade==='1'||r.es_upgrade===1) byMes[m].upg+=v;
+    });
+    const meses=Object.keys(byMes).sort();
+    if(!meses.length) return null;
+    const ult=byMes[meses[meses.length-1]];
+    return ult.tot>0?Math.round(ult.upg/ult.tot*100)+'%':null;
+  },[raw]);
+  const NAV_BADGES = {'Upgrades':upgradeBadge,'Salud':saludBadge,'Cancelaciones':cancelBadge,'Churn':churnBadge};
   const [filtroPais,setFiltroPais]=useState([]);
   const [filtroTipoVenta,setFiltroTipoVenta]=useState([]);
   const [filtroEstado,setFiltroEstado]=useState([]);
@@ -2936,7 +2970,8 @@ function App({authUser, onLogout}){
   },[activeTab, saludRetencion, saludLoadingMap.retencion]);
 
   useEffect(()=>{
-    if(activeTab==='Churn' && !churn && !churnLoading && !churnError){
+    // Se precargan al montar (sin esperar a visitar la pestaña) para alimentar los badges del menú.
+    if(!churn && !churnLoading && !churnError){
       setChurnLoading(true);
       // Fetch principal rápido (5 queries en paralelo)
       fetch('/api/churn').then(r=>r.json()).then(({nuevos,cancelaciones,tasaChurn,tiempoVida,motivos,churnPais,error})=>{
@@ -2944,7 +2979,7 @@ function App({authUser, onLogout}){
         setChurn({nuevos,cancelaciones,tasaChurn,tiempoVida:tiempoVida||[],motivos,churnPais});
       }).catch(e=>setChurnError(e.message)).finally(()=>setChurnLoading(false));
     }
-    if(activeTab==='Cancelaciones' && !cancelaciones && !cancelLoading){
+    if(!cancelaciones && !cancelLoading){
       setCancelLoading(true);
       fetch('/api/cancelaciones').then(r=>r.json()).then(({data,nuevos,error})=>{
         if(error)throw new Error(error);
