@@ -2889,24 +2889,13 @@ function App({authUser, onLogout}){
     if(!vals.length) return null;
     return (vals.reduce((s,v)=>s+v,0)/vals.length).toFixed(1)+'%';
   },[churn]);
-  // Badge Upgrades: % del cobro que viene de upgrades en el último mes cerrado
+  // Badge Upgrades: tasa de upgrade = % de clientes únicos con upgrade (igual que upgradeMetrics.tasa del tab)
   const upgradeBadge = useMemo(()=>{
-    if(!raw||!raw.length) return null;
-    const hoy=new Date().toISOString().slice(0,7);
-    const byMes={};
-    raw.forEach(r=>{
-      const m=(r.mes||'').slice(0,7);
-      if(!m||m>=hoy) return;
-      if(!byMes[m]) byMes[m]={tot:0,upg:0};
-      const v=+r.payment_amount_usd||0;
-      byMes[m].tot+=v;
-      if(r.es_upgrade==='1'||r.es_upgrade===1) byMes[m].upg+=v;
-    });
-    const meses=Object.keys(byMes).sort();
-    if(!meses.length) return null;
-    const ult=byMes[meses[meses.length-1]];
-    return ult.tot>0?Math.round(ult.upg/ult.tot*100)+'%':null;
-  },[raw]);
+    if(!clientesList||!clientesList.length) return null;
+    const tot=clientesList.length;
+    const upg=clientesList.filter(c=>c.tiene_upgrade==='1'||c.tiene_upgrade===1).length;
+    return tot>0?(upg/tot*100).toFixed(1)+'%':null;
+  },[clientesList]);
   const NAV_BADGES = {'Upgrades':upgradeBadge,'Salud':saludBadge,'Cancelaciones':cancelBadge,'Churn':churnBadge};
   const [filtroPais,setFiltroPais]=useState([]);
   const [filtroTipoVenta,setFiltroTipoVenta]=useState([]);
