@@ -687,7 +687,7 @@ function InsightCards({insights, data}){
     const mesActual = new Date().toISOString().slice(0,7);
 
     data.forEach(r=>{
-      const m = r.mes;
+      const m = r.mes ? r.mes.slice(0,7) : null; // agrupar por mes (el campo viene a nivel día)
       if(!m || m >= mesActual) return;
       const esRec = r.proceso_clasificado==='Recurrencia' || r.proceso_clasificado==='Cobranza';
 
@@ -3295,20 +3295,6 @@ function App({authUser, onLogout}){
   },[dataRec]);
 
   // ── Top clientes ──
-  const topClientes=useMemo(()=>{
-    let list=clientesList;
-    if(filtroPais.length>0)list=list.filter(c=>filtroPais.includes(c.pais_agrupado));
-    return list.slice(0,10).map(c=>({
-      student_id:c.student_id,
-      pais:c.pais_agrupado,
-      tipo_suscripcion:c.tipo_suscripcion,
-      cobrado:+c.cobrado||0,
-      facturas:+c.facturas||0,
-      primera_fecha:c.fecha_cierre_min||null,
-      tipo_pago:c.tipo_pago,
-    }));
-  },[clientesList,filtroPais]);
-
   const informe=useMemo(()=>{
     const topPais=aovPaisData[0]?.pais||'—';
     const topUpgrade=upgradeData[0]?.name||'—';
@@ -3649,21 +3635,6 @@ function App({authUser, onLogout}){
               </section>
             </div>
 
-            <section className="chart-section">
-              <SectionTitle>Top 10 clientes por revenue</SectionTitle>
-              <div className="table-wrapper">
-                <table className="data-table">
-                  <thead><tr><th>#</th><th>Student ID</th><th>País</th><th>Suscripción</th><th>Facturas</th><th>Primera fecha cierre</th><th>Ticket promedio</th><th>Total cobrado</th></tr></thead>
-                  <tbody>
-                    {topClientes.map((c,i)=>(
-                      <tr key={c.student_id}>
-                        <td>{i+1}</td><td className="mono">{c.student_id}</td><td>{c.pais||'—'}</td><td>{c.tipo_suscripcion||'—'}</td><td>{fmt(c.facturas)}</td><td>{c.primera_fecha||'—'}</td><td>{c.facturas>0?fmtUSD(c.cobrado/c.facturas):'—'}</td><td className="amount">{fmtUSD(c.cobrado)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
           </>
         )}
 
