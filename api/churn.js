@@ -12,6 +12,23 @@ const getClient = () => new Client({
   connectionTimeoutMillis: 60000,
 });
 
+// Suscripciones de Zuora deduplicadas: último registro por lastmodifieddate, solo canceladas.
+// Misma base que usa la pestaña Cancelaciones, para que ambas hablen el mismo idioma.
+const SUBS_ZUORA = `(
+  SELECT id, zuora__account__c AS student_id,
+    CAST(zuora__subscriptionstartdate__c AS date) AS subscription_start_date,
+    zuora__cancelleddate__c AS fecha_cancelacion,
+    subscriptionstatus__c AS subscription_status
+  FROM (
+    SELECT id, zuora__account__c, zuora__subscriptionstartdate__c, zuora__cancelleddate__c,
+      subscriptionstatus__c, zuora__status__c, isdeleted,
+      ROW_NUMBER() OVER(PARTITION BY id ORDER BY lastmodifieddate DESC) AS rn
+    FROM "salesforce-database".subscriptions
+  )
+  WHERE isdeleted = false AND rn = 1 AND zuora__status__c = 'Cancelled'
+    AND zuora__cancelleddate__c >= '2024-03-06' AND zuora__cancelleddate__c <= GETDATE()
+)`;
+
 // ── Query 1: Nuevos clientes por mes ─────────────────────────────────────────
 const QUERY_NUEVOS = `
 SELECT
@@ -32,11 +49,7 @@ ORDER BY mes;
 
 // ── Query 2: Cancelaciones por mes, país y tipo ───────────────────────────────
 const QUERY_CANCELACIONES = `
-WITH subs_base AS (
-  SELECT id, student_id, subscription_start_date,
-    fecha_cancelacion, subscription_status, isdeleted
-  FROM salesforce.tabla_core_suscripciones
-),
+WITH subs_base AS ${SUBS_ZUORA},
 casos_cobranza AS (
   SELECT suscripcion, status,
     ROW_NUMBER() OVER(PARTITION BY suscripcion ORDER BY fecha_cierre DESC) AS ultimo_caso
@@ -106,7 +119,7 @@ cancelaciones_mes AS (
   SELECT
     TO_CHAR(DATE_TRUNC('month', fecha_cancelacion), 'YYYY-MM') AS mes,
     COUNT(*) AS cancelaciones
-  FROM salesforce.tabla_core_suscripciones
+  FROM ${SUBS_ZUORA} s
   WHERE fecha_cancelacion IS NOT NULL
     AND fecha_cancelacion >= '2024-03-06'
     AND fecha_cancelacion <= GETDATE()
@@ -196,7 +209,7 @@ cancelaciones AS (
       ELSE 'Otro'
     END AS tipo_cancelacion,
     DATEDIFF('month', p.primera_fecha, s.fecha_cancelacion) AS meses_vida_real
-  FROM salesforce.tabla_core_suscripciones s
+  FROM ${SUBS_ZUORA} s
   JOIN primera_suscripcion p ON s.student_id = p.student_id
   LEFT JOIN casos_cobranza  cob ON s.id = cob.suscripcion AND cob.ultimo_caso = 1
   LEFT JOIN casos_chargeback ch  ON s.id = ch.suscripcion  AND ch.ultimo_caso = 1
@@ -281,7 +294,7 @@ cancel_pais AS (
            'cancelación programada','cancelacion programada',
            'cancelación con reembolso','suscripción cancelada')
       THEN 1 ELSE 0 END) AS voluntaria
-  FROM salesforce.tabla_core_suscripciones s
+  FROM ${SUBS_ZUORA} s
   LEFT JOIN salesforce.tabla_core_estudiantes e ON s.student_id = e.student_id
   LEFT JOIN (
     SELECT suscripcion, status,

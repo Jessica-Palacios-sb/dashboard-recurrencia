@@ -35,7 +35,8 @@ WITH subs_filtradas AS (
   )
   WHERE isdeleted = false
     AND rn = 1
-    AND zuora__cancelleddate__c >= '2024-05-01'
+    AND zuora__cancelleddate__c >= '2024-03-06'
+    AND zuora__cancelleddate__c <= GETDATE()
     AND zuora__status__c = 'Cancelled'
 ),
 primera_suscripcion AS (
