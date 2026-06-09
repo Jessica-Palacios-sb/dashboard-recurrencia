@@ -929,7 +929,7 @@ function CancelacionesTab({data, nuevos=[]}){
     {rango:'Mes 1',n:0},{rango:'Mes 2',n:0},{rango:'Mes 3',n:0},
     {rango:'Mes 4',n:0},{rango:'Mes 5',n:0},{rango:'Mes 6',n:0},{rango:'+6 meses',n:0}
   ];
-  data.filter(r=>r.mes_cancelacion&&r.mes_inicio&&pasaTP(r)).forEach(r=>{
+  data.filter(r=>r.mes_cancelacion&&r.mes_inicio&&r.tipo_cancelacion!=='Otro'&&pasaTP(r)).forEach(r=>{
     const meses=+r.meses_vida_real;
     const n=+r.suscripciones;
     if(meses<=1) duracionBuckets[0].n+=n;       // Mes 1 = 0-1 meses de vida
