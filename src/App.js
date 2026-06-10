@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
-  ComposedChart, Area, ReferenceLine
+  ComposedChart, Area, ReferenceLine, LabelList
 } from 'recharts';
 import './App.css';
 
@@ -2907,12 +2907,14 @@ function AdquisicionesSection({metrics}){
         <div style={{fontSize:14,fontWeight:600,marginBottom:2}}>Adquisiciones por mes</div>
         <div style={{fontSize:12,color:'#9ca3af',marginBottom:10}}>Nuevo MRR (barras) · clientes nuevos (debajo) — últimos {Math.min(ultimos6.length,6)} meses cerrados</div>
         <ResponsiveContainer width="100%" height={210}>
-          <BarChart data={ultimos6} margin={{top:10,right:16,left:8,bottom:24}}>
+          <BarChart data={ultimos6} margin={{top:26,right:16,left:8,bottom:24}}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb"/>
             <XAxis dataKey="mes" tick={<MesTick/>} height={40} interval={0}/>
             <YAxis tickFormatter={v=>'$'+Math.round(v/1000)+'k'} tick={{fontSize:11}}/>
-            <Tooltip formatter={(v)=>[fmtUSD(v),'Nuevo MRR']} labelFormatter={m=>mesLabel(m)}/>
-            <Bar dataKey="nuevoMrr" name="Nuevo MRR" radius={[5,5,0,0]} fill="#10b981"/>
+            <Tooltip formatter={(v)=>[fmtUSD(v),'Cash recaudado']} labelFormatter={m=>mesLabel(m)}/>
+            <Bar dataKey="nuevoMrr" name="Cash recaudado" radius={[5,5,0,0]} fill="#10b981">
+              <LabelList dataKey="nuevoMrr" position="top" formatter={v=>fmtUSD(v)} style={{fontSize:11,fontWeight:600,fill:'#374151'}}/>
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
