@@ -126,6 +126,30 @@ GROUP BY b.student_id, b.pais_agrupado, e.tipo_suscripcion, b.tipo_pago
 ORDER BY cobrado DESC
 LIMIT 500`;
 
+// Adquisiciones (factura 1): mismo subquery base/clasificación que el MRR, filtrado a
+// proceso 'Adquisicion' (numero_invoice_factura=1 AND tipo_venta='Adquisicion'),
+// pago efectivo (payment_amount_usd > 0) y sin saldo abierto (open_balance = false).
+// Conjunto disjunto de Recurrencia/Cobranza: NO se solapa con el MRR base.
+const QUERY_ADQUISICIONES = `
+SELECT
+  TO_CHAR(DATE_TRUNC('month', b.fecha_pago), 'YYYY-MM') AS mes,
+  COUNT(DISTINCT b.student_id)                 AS nuevos_clientes,
+  ROUND(SUM(b.payment_amount_usd)::numeric, 2) AS nuevo_mrr
+FROM (
+  SELECT ${BASE_COLS}, ${PROC_INV} AS proceso_clasificado
+  ${JOINS}
+  WHERE f.invoice_factura = 'invoice' AND ${FILT_COMMON}
+  UNION ALL
+  SELECT ${BASE_COLS}, ${PROC_FAC} AS proceso_clasificado
+  ${JOINS}
+  WHERE f.invoice_factura = 'factura' AND o.fecha_cierre < '2024-03-06' AND ${FILT_COMMON}
+) b
+WHERE b.proceso_clasificado = 'Adquisicion'
+  AND b.payment_amount_usd > 0
+  AND b.open_balance = false
+GROUP BY 1
+ORDER BY 1`;
+
 let _redis = null;
 const getRedis = () => {
   if (!_redis) _redis = new Redis({
@@ -153,11 +177,12 @@ module.exports = async (req, res) => {
   const client = getClient();
   try {
     await client.connect();
-    const [r1, r2] = await Promise.all([
+    const [r1, r2, r3] = await Promise.all([
       client.query(QUERY_MONTHLY),
       client.query(QUERY_CLIENTES),
+      client.query(QUERY_ADQUISICIONES),
     ]);
-    const data = { data: r1.rows, clientes: r2.rows };
+    const data = { data: r1.rows, clientes: r2.rows, adquisiciones: r3.rows };
     // writeCache comprime con gzip: el payload (~10MB) supera el límite de Upstash sin comprimir.
     await writeCache(redis, CACHE_KEY, data, CACHE_TTL);
     res.status(200).json(data);

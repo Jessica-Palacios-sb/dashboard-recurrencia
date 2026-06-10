@@ -2822,9 +2822,107 @@ function SyncTab({authUser}){
   );
 }
 
+function AdquisicionesSection({metrics}){
+  const fmtUSD = n => n==null?'—':'$'+Number(n).toLocaleString('es-CO',{maximumFractionDigits:0});
+  const fmt    = n => n==null?'—':Number(n).toLocaleString('es-CO',{maximumFractionDigits:0});
+  const mesLabel = m => { try { return new Date(m+'-01T00:00:00').toLocaleDateString('es',{month:'short',year:'2-digit'}); } catch { return m; } };
+  const {ult,prev,ticketAct,ticketPrev,dClientes,dMrr,vsBase,ultimos6}=metrics;
+  if(!ult) return null;
+  const dTicket = ticketPrev>0 ? (ticketAct-ticketPrev)/ticketPrev*100 : null;
+  const refMes = prev ? mesLabel(prev.mes) : 'mes ant.';
+  const Delta = ({pct}) => pct==null ? null : (
+    <span style={{color:pct>=0?'#10b981':'#ef4444',fontWeight:600}}>
+      {pct>=0?'▲':'▼'} {Math.abs(pct).toFixed(1)}% <span style={{color:'#9ca3af',fontWeight:400}}>vs {refMes}</span>
+    </span>
+  );
+
+  // Puente de MRR (fase 1): MRR inicial = Adquisiciones; Expansión/Contracción/Churn = 0; MRR final = Adquisiciones.
+  const A = ult.nuevoMrr;
+  const maxH = 200, esc = v => A>0 ? Math.max(Math.round(Math.abs(v)/A*maxH),0) : 0;
+  const wf = [
+    {name:'MRR inicial', sub:'= adquisiciones', val:A,  color:'#5b8def', total:true},
+    {name:'Expansión',   sub:'upgrades · fase 2', val:0, color:'#6ee7b7', signo:'+'},
+    {name:'Contracción', sub:'downgrades · fase 2', val:0, color:'#fbbf24', signo:'−'},
+    {name:'Churn',       sub:'cancelados · fase 2', val:0, color:'#ef4444', signo:'−'},
+    {name:'MRR final',   sub:'= adquisiciones', val:A,  color:'#5b8def', total:true},
+  ];
+
+  const MesTick = ({x,y,payload}) => {
+    const row=(ultimos6||[]).find(r=>r.mes===payload.value);
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text x={0} y={0} dy={12} textAnchor="middle" fontSize={11} fill="#374151">{mesLabel(payload.value)}</text>
+        <text x={0} y={0} dy={26} textAnchor="middle" fontSize={10} fill="#9ca3af">{row?fmt(row.nuevosClientes):''} cli.</text>
+      </g>
+    );
+  };
+
+  return(
+    <section className="chart-section" style={{marginTop:18}}>
+      <h2 className="section-title">Adquisiciones — nuevo negocio</h2>
+      <p style={{margin:'-4px 0 16px',fontSize:13,color:'#6b7280'}}>
+        Factura 1 · clientes que entran a la base recurrente · <strong>{mesLabel(ult.mes)}</strong> (último mes cerrado).
+        No se solapa con el MRR de recurrencia (facturas 2+).
+      </p>
+
+      {/* A. KPIs */}
+      <div className="kpi-grid">
+        <KPICard label="Nuevos clientes" value={fmt(ult.nuevosClientes)} sub={<Delta pct={dClientes}/>}
+          tooltip="Cuentas que pagaron su factura 1 en el mes (proceso Adquisición, pago > 0, sin saldo abierto)."/>
+        <KPICard label="Nuevo MRR (adquisiciones)" value={fmtUSD(ult.nuevoMrr)} sub={<Delta pct={dMrr}/>}
+          tooltip="Suma del valor recurrente de las facturas 1 del mes. Es el MRR que se SUMA a la base por clientes nuevos."/>
+        <KPICard label="Ticket promedio adquisición" value={fmtUSD(ticketAct)} sub={<Delta pct={dTicket}/>}
+          tooltip="Nuevo MRR / Nuevos clientes. Cuánto entra en promedio por cada cliente nuevo."/>
+        <KPICard label="Nuevo vs base recurrente" value={vsBase!=null?vsBase.toFixed(1)+'%':'—'}
+          sub={`${fmtUSD(ult.nuevoMrr)} nuevo / ${fmtUSD(ult.baseMrr)} base`}
+          tooltip="Qué % del MRR base equivale a lo que entró nuevo este mes. Mide cuánto depende el crecimiento de la adquisición."/>
+      </div>
+
+      {/* B. Puente de MRR */}
+      <div style={{marginTop:18,padding:'18px 4px 4px'}}>
+        <div style={{fontSize:14,fontWeight:600,marginBottom:2}}>Puente de MRR — movimiento del mes</div>
+        <div style={{fontSize:12,color:'#9ca3af',marginBottom:18}}>Verde suma, ámbar/rojo resta, azul los totales. Expansión, contracción y churn se calcularán en fase 2.</div>
+        <div style={{display:'flex',alignItems:'flex-end',gap:14,height:236,borderBottom:'1px solid #e5e7eb',paddingTop:24}}>
+          {wf.map((b,i)=>(
+            <div key={i} style={{flex:1,display:'flex',flexDirection:'column',justifyContent:'flex-end',alignItems:'center',minWidth:0}}>
+              <div style={{fontSize:12,fontWeight:600,marginBottom:6,whiteSpace:'nowrap',color:b.total?'#374151':(b.signo==='+'?'#10b981':'#9ca3af')}}>
+                {b.total?fmtUSD(b.val):(b.signo+fmtUSD(b.val).replace('$','$'))}
+              </div>
+              <div style={{width:'100%',maxWidth:78,height:b.total?esc(b.val):4,minHeight:4,borderRadius:'6px 6px 0 0',background:b.color}}/>
+            </div>
+          ))}
+        </div>
+        <div style={{display:'flex',gap:14,marginTop:10}}>
+          {wf.map((b,i)=>(
+            <div key={i} style={{flex:1,textAlign:'center',fontSize:11.5,color:'#9ca3af',lineHeight:1.35}}>
+              <b style={{color:'#374151',display:'block',fontSize:12}}>{b.name}</b>{b.sub}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* C. Adquisiciones por mes */}
+      <div style={{marginTop:22}}>
+        <div style={{fontSize:14,fontWeight:600,marginBottom:2}}>Adquisiciones por mes</div>
+        <div style={{fontSize:12,color:'#9ca3af',marginBottom:10}}>Nuevo MRR (barras) · clientes nuevos (debajo) — últimos {Math.min(ultimos6.length,6)} meses cerrados</div>
+        <ResponsiveContainer width="100%" height={210}>
+          <BarChart data={ultimos6} margin={{top:10,right:16,left:8,bottom:24}}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb"/>
+            <XAxis dataKey="mes" tick={<MesTick/>} height={40} interval={0}/>
+            <YAxis tickFormatter={v=>'$'+Math.round(v/1000)+'k'} tick={{fontSize:11}}/>
+            <Tooltip formatter={(v)=>[fmtUSD(v),'Nuevo MRR']} labelFormatter={m=>mesLabel(m)}/>
+            <Bar dataKey="nuevoMrr" name="Nuevo MRR" radius={[5,5,0,0]} fill="#10b981"/>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
 function App({authUser, onLogout}){
   const [raw,setRaw]=useState([]);
   const [clientesList,setClientesList]=useState([]);
+  const [adquisicionesData,setAdquisicionesData]=useState([]);
   const [lastUpdate,setLastUpdate]=useState(null);
   const [showChangePassword,setShowChangePassword]=useState(false);
   const [loading,setLoading]=useState(true);
@@ -2988,6 +3086,7 @@ function App({authUser, onLogout}){
       if(rec.error)throw new Error(rec.error);
       setRaw(rec.data||[]);
       setClientesList(rec.clientes||[]);
+      setAdquisicionesData(rec.adquisiciones||[]);
       const completedAt=sync?.log?.completedAt;
       setLastUpdate(completedAt?new Date(completedAt):new Date());
     }).catch(e=>setError(e.message)).finally(()=>setLoading(false));
@@ -3051,6 +3150,33 @@ function App({authUser, onLogout}){
     const mrrCambio=mrrAnt>0?((mrr-mrrAnt)/mrrAnt)*100:0;
     return{totalFacturado,totalCobrado,clientes,aov,tasaCobro,openBalance,mrr,mrrCambio,porMes,meses};
   },[dataRec]);
+
+  // ── Adquisiciones (factura 1) — métricas por mes (excluye el mes en curso) ──
+  const adquisicionesMetrics=useMemo(()=>{
+    const mesActual=new Date().toISOString().slice(0,7);
+    const rows=(adquisicionesData||[])
+      .filter(a=>a.mes && a.mes<mesActual)
+      .map(a=>({
+        mes:a.mes,
+        nuevosClientes:+a.nuevos_clientes||0,
+        nuevoMrr:+a.nuevo_mrr||0,
+        baseMrr:kpis.porMes[a.mes]||0,
+      }))
+      .sort((x,y)=>x.mes.localeCompare(y.mes));
+    const ult=rows[rows.length-1]||null;
+    const prev=rows[rows.length-2]||null;
+    const pct=(a,b)=>(b>0?((a-b)/b*100):null);
+    return {
+      rows,
+      ult, prev,
+      ultimos6: rows.slice(-6),
+      ticketAct: ult&&ult.nuevosClientes>0 ? ult.nuevoMrr/ult.nuevosClientes : 0,
+      ticketPrev: prev&&prev.nuevosClientes>0 ? prev.nuevoMrr/prev.nuevosClientes : 0,
+      dClientes: ult&&prev ? pct(ult.nuevosClientes,prev.nuevosClientes) : null,
+      dMrr: ult&&prev ? pct(ult.nuevoMrr,prev.nuevoMrr) : null,
+      vsBase: ult&&ult.baseMrr>0 ? ult.nuevoMrr/ult.baseMrr*100 : null,
+    };
+  },[adquisicionesData,kpis.porMes]);
 
   // ── Insights: 4 factores que frenan la recurrencia ──
   const insights=useMemo(()=>{
@@ -3634,6 +3760,8 @@ function App({authUser, onLogout}){
                 </ResponsiveContainer>
               </section>
             </div>
+
+            <AdquisicionesSection metrics={adquisicionesMetrics}/>
 
           </>
         )}

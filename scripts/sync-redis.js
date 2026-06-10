@@ -203,11 +203,31 @@ GROUP BY b.student_id, b.pais_agrupado, e.tipo_suscripcion, b.tipo_pago
 ORDER BY cobrado DESC
 LIMIT 500`;
 
-      const [r1, r2] = await Promise.all([
+      // Adquisiciones (factura 1): mismo subquery base que el MRR, filtrado a proceso 'Adquisicion',
+      // pago efectivo (payment_amount_usd > 0) y sin saldo abierto (open_balance = false). Disjunto del MRR base.
+      const QUERY_ADQUISICIONES = `
+SELECT
+  TO_CHAR(DATE_TRUNC('month', b.fecha_pago), 'YYYY-MM') AS mes,
+  COUNT(DISTINCT b.student_id)                 AS nuevos_clientes,
+  ROUND(SUM(b.payment_amount_usd)::numeric, 2) AS nuevo_mrr
+FROM (
+  SELECT ${BASE_COLS}, ${PROC_INV} AS proceso_clasificado
+  ${JOINS}
+  WHERE f.invoice_factura = 'invoice' AND ${FILT_COMMON}
+  UNION ALL
+  SELECT ${BASE_COLS}, ${PROC_FAC} AS proceso_clasificado
+  ${JOINS}
+  WHERE f.invoice_factura = 'factura' AND o.fecha_cierre < '2024-03-06' AND ${FILT_COMMON}
+) b
+WHERE b.proceso_clasificado = 'Adquisicion' AND b.payment_amount_usd > 0 AND b.open_balance = false
+GROUP BY 1 ORDER BY 1`;
+
+      const [r1, r2, r3] = await Promise.all([
         client.query(QUERY_MONTHLY),
         client.query(QUERY_CLIENTES),
+        client.query(QUERY_ADQUISICIONES),
       ]);
-      return { data: r1.rows, clientes: r2.rows };
+      return { data: r1.rows, clientes: r2.rows, adquisiciones: r3.rows };
     },
   },
 
