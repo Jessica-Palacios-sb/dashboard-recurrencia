@@ -374,6 +374,7 @@ function Semaforo({pct}){
 
 const NAV_ICONS = {
   'Recurrencia':   <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><rect x="1" y="7" width="3" height="7" rx="1"/><rect x="6" y="4" width="3" height="10" rx="1"/><rect x="11" y="1" width="3" height="13" rx="1"/></svg>,
+  'Adquisiciones': <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><circle cx="5.5" cy="5" r="2.5"/><path d="M1 13c0-2.5 2-4 4.5-4 .9 0 1.7.2 2.4.6"/><path d="M11.5 8v4M9.5 10h4"/></svg>,
   'Upgrades':      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><path d="M2 11L6 7l3 3 4-5"/><path d="M10 6h3v3"/></svg>,
   'Salud':         <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><circle cx="7.5" cy="7.5" r="5.5"/><path d="M7.5 4.5v3l2 1.5"/></svg>,
   'Cancelaciones': <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><path d="M2 4h11M2 7.5h8M2 11h5"/><circle cx="12" cy="11" r="2.5"/><path d="M11 10l1 1 1.5-1.5"/></svg>,
@@ -3463,12 +3464,15 @@ function App({authUser, onLogout}){
             </div>
           </div>
           <NavTab
-            tabs={[
-              ...(authUser?.rol==='admin'
+            tabs={(()=>{
+              const base = authUser?.rol==='admin'
                 ? ['Recurrencia','Upgrades','Salud','Cancelaciones','Churn','Usuarios']
-                : (authUser?.pestanas || ['Recurrencia','Upgrades','Salud','Cancelaciones','Churn'])),
-              ...(authUser?.superAdmin ? ['Sincronización'] : []),
-            ]}
+                : (authUser?.pestanas || ['Recurrencia','Upgrades','Salud','Cancelaciones','Churn']);
+              // Adquisiciones siempre justo después de Recurrencia (para todos los usuarios)
+              const conAdq = base.flatMap(t => t==='Recurrencia' ? ['Recurrencia','Adquisiciones'] : [t]);
+              if(!conAdq.includes('Adquisiciones')) conAdq.unshift('Adquisiciones');
+              return [...conAdq, ...(authUser?.superAdmin ? ['Sincronización'] : [])];
+            })()}
             active={activeTab} onChange={setActiveTab} badges={NAV_BADGES}/>
           <div className="sidebar-footer">
             {lastUpdate
@@ -3540,6 +3544,7 @@ function App({authUser, onLogout}){
             <h1 className="page-title">{activeTab}</h1>
             <p className="page-sub">
               {activeTab==='Recurrencia'&&<>{fmt(data.length)} facturas recurrentes · Pagos de factura #2 en adelante</>}
+              {activeTab==='Adquisiciones'&&<>Nuevo negocio · factura 1 que entra a la base recurrente</>}
               {activeTab==='Upgrades'&&<>Clientes con cambio de plan o pago anticipado</>}
               {activeTab==='Salud'&&<>Retención, cohortes y LTV · Datos desde 2023</>}
               {activeTab==='Cancelaciones'&&<>Suscripciones canceladas en Zuora</>}
@@ -3761,9 +3766,12 @@ function App({authUser, onLogout}){
               </section>
             </div>
 
-            <AdquisicionesSection metrics={adquisicionesMetrics}/>
-
           </>
+        )}
+
+        {/* ── TAB: ADQUISICIONES ── */}
+        {activeTab==='Adquisiciones'&&(
+          <AdquisicionesSection metrics={adquisicionesMetrics}/>
         )}
 
         {/* ── TAB: UPGRADES ── */}
