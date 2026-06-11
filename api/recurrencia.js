@@ -150,6 +150,62 @@ WHERE b.proceso_clasificado = 'Adquisicion'
 GROUP BY 1
 ORDER BY 1`;
 
+// Puente de MRR (normalizado por tiempo_recurrencia): el pago se reparte (pago/T) en los T meses que cubre.
+// Descomposición base-delta sobre el MRR recurrente mensual por cliente (factura 2+), que reconcilia exacto:
+//   base(M) = base(M-1) + nuevos + expansion - contraccion - churn
+const QUERY_MRR_NORM = `
+WITH mo AS (
+  SELECT 0 AS offs UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5
+  UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11
+),
+rec AS (
+  SELECT f.student_id, DATE_TRUNC('month', f.fecha_pago) AS mes_pago, f.payment_amount_usd AS pay,
+    GREATEST(1, CASE WHEN TRIM(COALESCE(o.tiempo_recurrencia,'1')) ~ '^[0-9]+$' THEN CAST(TRIM(o.tiempo_recurrencia) AS INT) ELSE 1 END) AS t
+  FROM salesforce.tabla_core_invoices_facturas f
+  LEFT JOIN salesforce.tabla_core_oportunidades o ON f.id_oportunidad = o.id
+  WHERE (f.invoice_factura = 'invoice' OR (o.fecha_cierre < '2024-03-06' AND f.invoice_factura = 'factura'))
+    AND f.fecha_pago IS NOT NULL AND f.fecha_pago <= GETDATE() AND f.payment_amount_usd > 0
+    AND o.etapa IN ('Ganada Verificada', 'Closed Won') AND f.numero_invoice_factura >= 2
+    AND ((o.sub_tipo_venta LIKE '%Bootcamp%' AND o.tipo_pago = 'Cuotas') OR o.sub_tipo_venta LIKE '%Suscripción smartBeemo%' OR (o.sub_tipo_venta = 'Mentoría' AND o.tipo_pago = 'Cuotas'))
+),
+ex AS (
+  SELECT student_id, TO_CHAR(DATEADD('month', mo.offs, mes_pago), 'YYYY-MM') AS mes, pay / t AS m
+  FROM rec JOIN mo ON mo.offs < rec.t
+),
+cli AS (SELECT student_id, mes, SUM(m) AS mrr FROM ex GROUP BY 1, 2),
+w AS (
+  SELECT student_id, mes, mrr,
+    LAG(mrr)  OVER (PARTITION BY student_id ORDER BY mes) AS pmrr,
+    LAG(mes)  OVER (PARTITION BY student_id ORDER BY mes) AS pmes,
+    LEAD(mes) OVER (PARTITION BY student_id ORDER BY mes) AS nmes
+  FROM cli
+),
+base AS (SELECT mes, SUM(mrr) AS base_norm FROM cli GROUP BY mes),
+mov AS (
+  SELECT mes,
+    SUM(CASE WHEN pmes IS NULL OR pmes <> TO_CHAR(DATEADD('month',-1,TO_DATE(mes||'-01','YYYY-MM-DD')),'YYYY-MM') THEN mrr ELSE 0 END) AS nuevos,
+    SUM(CASE WHEN pmes = TO_CHAR(DATEADD('month',-1,TO_DATE(mes||'-01','YYYY-MM-DD')),'YYYY-MM') AND mrr > pmrr THEN mrr - pmrr ELSE 0 END) AS expansion,
+    SUM(CASE WHEN pmes = TO_CHAR(DATEADD('month',-1,TO_DATE(mes||'-01','YYYY-MM-DD')),'YYYY-MM') AND mrr < pmrr THEN pmrr - mrr ELSE 0 END) AS contraccion
+  FROM w GROUP BY mes
+),
+churn AS (
+  SELECT TO_CHAR(DATEADD('month',1,TO_DATE(mes||'-01','YYYY-MM-DD')),'YYYY-MM') AS mes, SUM(mrr) AS churn
+  FROM w
+  WHERE (nmes IS NULL OR nmes <> TO_CHAR(DATEADD('month',1,TO_DATE(mes||'-01','YYYY-MM-DD')),'YYYY-MM'))
+    AND TO_CHAR(DATEADD('month',1,TO_DATE(mes||'-01','YYYY-MM-DD')),'YYYY-MM') < TO_CHAR(DATE_TRUNC('month',GETDATE()),'YYYY-MM')
+  GROUP BY 1
+)
+SELECT b.mes,
+  ROUND(b.base_norm::numeric,0)            AS base_norm,
+  ROUND(COALESCE(m.nuevos,0)::numeric,0)   AS nuevos,
+  ROUND(COALESCE(m.expansion,0)::numeric,0)   AS expansion,
+  ROUND(COALESCE(m.contraccion,0)::numeric,0) AS contraccion,
+  ROUND(COALESCE(c.churn,0)::numeric,0)    AS churn
+FROM base b
+LEFT JOIN mov m ON m.mes = b.mes
+LEFT JOIN churn c ON c.mes = b.mes
+ORDER BY b.mes`;
+
 let _redis = null;
 const getRedis = () => {
   if (!_redis) _redis = new Redis({
@@ -177,12 +233,13 @@ module.exports = async (req, res) => {
   const client = getClient();
   try {
     await client.connect();
-    const [r1, r2, r3] = await Promise.all([
+    const [r1, r2, r3, r4] = await Promise.all([
       client.query(QUERY_MONTHLY),
       client.query(QUERY_CLIENTES),
       client.query(QUERY_ADQUISICIONES),
+      client.query(QUERY_MRR_NORM),
     ]);
-    const data = { data: r1.rows, clientes: r2.rows, adquisiciones: r3.rows };
+    const data = { data: r1.rows, clientes: r2.rows, adquisiciones: r3.rows, mrrNorm: r4.rows };
     // writeCache comprime con gzip: el payload (~10MB) supera el límite de Upstash sin comprimir.
     await writeCache(redis, CACHE_KEY, data, CACHE_TTL);
     res.status(200).json(data);
