@@ -2827,14 +2827,11 @@ function AdquisicionesSection({metrics}){
   const fmtUSD = n => n==null?'—':'$'+Number(n).toLocaleString('es-CO',{maximumFractionDigits:0});
   const fmt    = n => n==null?'—':Number(n).toLocaleString('es-CO',{maximumFractionDigits:0});
   const mesLabel = m => { try { return new Date(m+'-01T00:00:00').toLocaleDateString('es',{month:'short',year:'2-digit'}); } catch { return m; } };
-  const {ult,prev,ticketAct,ticketPrev,dClientes,dMrr,vsBase,chartData,mesEnCurso,diasMes,diasTotalMes}=metrics;
+  const {ult,prev,ticketAct,dClientes,dMrr,vsBase,chartData,mesEnCurso,diasMes,diasTotalMes}=metrics;
   if(!ult) return null;
-  const dTicket = ticketPrev>0 ? (ticketAct-ticketPrev)/ticketPrev*100 : null;
   const refMes = prev ? mesLabel(prev.mes) : 'mes ant.';
-  const Delta = ({pct}) => pct==null ? null : (
-    <span style={{color:pct>=0?'#10b981':'#ef4444',fontWeight:600}}>
-      {pct>=0?'▲':'▼'} {Math.abs(pct).toFixed(1)}% <span style={{color:'#9ca3af',fontWeight:400}}>vs {refMes}</span>
-    </span>
+  const deltaSub = pct => pct==null ? null : (
+    <span className="semaforo-stat-sub" style={{color:pct>=0?'#10b981':'#ef4444'}}>{pct>=0?'▲':'▼'} {Math.abs(pct).toFixed(1)}% vs {refMes}</span>
   );
 
   // Puente de MRR (fase 1): MRR inicial = Adquisiciones; Expansión/Contracción/Churn = 0; MRR final = Adquisiciones.
@@ -2873,9 +2870,10 @@ function AdquisicionesSection({metrics}){
           <div className="semaforo-bloque">
             <span className="semaforo-label">Mes anterior — cerrado ({mesLabel(ult.mes)})</span>
             <div className="semaforo-row">
-              <div className="semaforo-stat"><span className="semaforo-stat-label">Nuevos clientes</span><span className="semaforo-stat-value">{fmt(ult.nuevosClientes)}</span></div>
-              <div className="semaforo-stat"><span className="semaforo-stat-label">Nuevo MRR</span><span className="semaforo-stat-value">{fmtUSD(ult.nuevoMrr)}</span></div>
+              <div className="semaforo-stat"><span className="semaforo-stat-label">Nuevos clientes</span><span className="semaforo-stat-value">{fmt(ult.nuevosClientes)}</span>{deltaSub(dClientes)}</div>
+              <div className="semaforo-stat"><span className="semaforo-stat-label">Nuevo MRR</span><span className="semaforo-stat-value">{fmtUSD(ult.nuevoMrr)}</span>{deltaSub(dMrr)}</div>
               <div className="semaforo-stat"><span className="semaforo-stat-label">Ticket adquisición</span><span className="semaforo-stat-value">{fmtUSD(ticketAct)}</span></div>
+              <div className="semaforo-stat"><span className="semaforo-stat-label">Nuevo vs base</span><span className="semaforo-stat-value">{vsBase!=null?vsBase.toFixed(1)+'%':'—'}</span><span className="semaforo-stat-sub">{fmtUSD(ult.nuevoMrr)} / {fmtUSD(ult.baseMrr)}</span></div>
             </div>
           </div>
           <div className="semaforo-divider"/>
@@ -2895,19 +2893,6 @@ function AdquisicionesSection({metrics}){
             </div>
           )}
         </div>
-      </div>
-
-      {/* A. KPIs */}
-      <div className="kpi-grid">
-        <KPICard label="Nuevos clientes" value={fmt(ult.nuevosClientes)} sub={<Delta pct={dClientes}/>}
-          tooltip="Cuentas que pagaron su factura 1 en el mes (proceso Adquisición, pago > 0, sin saldo abierto)."/>
-        <KPICard label="Nuevo MRR (adquisiciones)" value={fmtUSD(ult.nuevoMrr)} sub={<Delta pct={dMrr}/>}
-          tooltip="Suma del valor recurrente de las facturas 1 del mes. Es el MRR que se SUMA a la base por clientes nuevos."/>
-        <KPICard label="Ticket promedio adquisición" value={fmtUSD(ticketAct)} sub={<Delta pct={dTicket}/>}
-          tooltip="Nuevo MRR / Nuevos clientes. Cuánto entra en promedio por cada cliente nuevo."/>
-        <KPICard label="Nuevo vs base recurrente" value={vsBase!=null?vsBase.toFixed(1)+'%':'—'}
-          sub={`${fmtUSD(ult.nuevoMrr)} nuevo / ${fmtUSD(ult.baseMrr)} base`}
-          tooltip="Qué % del MRR base equivale a lo que entró nuevo este mes. Mide cuánto depende el crecimiento de la adquisición."/>
       </div>
 
       {/* B. Puente de MRR */}
