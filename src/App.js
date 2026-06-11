@@ -2827,7 +2827,7 @@ function AdquisicionesSection({metrics}){
   const fmtUSD = n => n==null?'—':'$'+Number(n).toLocaleString('es-CO',{maximumFractionDigits:0});
   const fmt    = n => n==null?'—':Number(n).toLocaleString('es-CO',{maximumFractionDigits:0});
   const mesLabel = m => { try { return new Date(m+'-01T00:00:00').toLocaleDateString('es',{month:'short',year:'2-digit'}); } catch { return m; } };
-  const {ult,prev,ticketAct,ticketPrev,dClientes,dMrr,vsBase,ultimos6}=metrics;
+  const {ult,prev,ticketAct,ticketPrev,dClientes,dMrr,vsBase,chartData,mesEnCurso,diasMes,diasTotalMes}=metrics;
   if(!ult) return null;
   const dTicket = ticketPrev>0 ? (ticketAct-ticketPrev)/ticketPrev*100 : null;
   const refMes = prev ? mesLabel(prev.mes) : 'mes ant.';
@@ -2849,10 +2849,11 @@ function AdquisicionesSection({metrics}){
   ];
 
   const MesTick = ({x,y,payload}) => {
-    const row=(ultimos6||[]).find(r=>r.mes===payload.value);
+    const row=(chartData||[]).find(r=>r.mes===payload.value);
+    const parc=row&&row.parcial;
     return (
       <g transform={`translate(${x},${y})`}>
-        <text x={0} y={0} dy={12} textAnchor="middle" fontSize={11} fill="#374151">{mesLabel(payload.value)}</text>
+        <text x={0} y={0} dy={12} textAnchor="middle" fontSize={11} fill={parc?'#9ca3af':'#374151'}>{mesLabel(payload.value)}{parc?' *':''}</text>
         <text x={0} y={0} dy={26} textAnchor="middle" fontSize={10} fill="#9ca3af">{row?fmt(row.nuevosClientes):''} cli.</text>
       </g>
     );
@@ -2865,6 +2866,36 @@ function AdquisicionesSection({metrics}){
         Factura 1 · clientes que entran a la base recurrente · <strong>{mesLabel(ult.mes)}</strong> (último mes cerrado).
         No se solapa con el MRR de recurrencia (facturas 2+).
       </p>
+
+      {/* Semáforo: mes anterior cerrado vs mes en curso */}
+      <div className="semaforo-banner" style={{marginBottom:18}}>
+        <div className="semaforo-doble">
+          <div className="semaforo-bloque">
+            <span className="semaforo-label">Mes anterior — cerrado ({mesLabel(ult.mes)})</span>
+            <div className="semaforo-row">
+              <div className="semaforo-stat"><span className="semaforo-stat-label">Nuevos clientes</span><span className="semaforo-stat-value">{fmt(ult.nuevosClientes)}</span></div>
+              <div className="semaforo-stat"><span className="semaforo-stat-label">Nuevo MRR</span><span className="semaforo-stat-value">{fmtUSD(ult.nuevoMrr)}</span></div>
+              <div className="semaforo-stat"><span className="semaforo-stat-label">Ticket adquisición</span><span className="semaforo-stat-value">{fmtUSD(ticketAct)}</span></div>
+            </div>
+          </div>
+          <div className="semaforo-divider"/>
+          {mesEnCurso ? (
+            <div className="semaforo-bloque">
+              <span className="semaforo-label">Mes actual — en curso ({mesLabel(mesEnCurso.mes)}) · día {diasMes}/{diasTotalMes}</span>
+              <div className="semaforo-grid">
+                <div className="semaforo-stat"><span className="semaforo-stat-label">Nuevos clientes</span><span className="semaforo-stat-value">{fmt(mesEnCurso.nuevosClientes)}</span><span className="semaforo-stat-sub">Proy: {fmt(mesEnCurso.proyClientes)}</span></div>
+                <div className="semaforo-stat"><span className="semaforo-stat-label">Nuevo MRR</span><span className="semaforo-stat-value">{fmtUSD(mesEnCurso.nuevoMrr)}</span><span className="semaforo-stat-sub">Proy: {fmtUSD(mesEnCurso.proyMrr)}</span></div>
+                <div className="semaforo-stat"><span className="semaforo-stat-label">Ticket adquisición</span><span className="semaforo-stat-value">{fmtUSD(mesEnCurso.ticket)}</span></div>
+              </div>
+            </div>
+          ) : (
+            <div className="semaforo-bloque">
+              <span className="semaforo-label">Mes actual — en curso</span>
+              <div className="semaforo-row"><div className="semaforo-stat"><span className="semaforo-stat-sub">Sin adquisiciones registradas aún este mes.</span></div></div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* A. KPIs */}
       <div className="kpi-grid">
@@ -2905,14 +2936,15 @@ function AdquisicionesSection({metrics}){
       {/* C. Adquisiciones por mes */}
       <div style={{marginTop:22}}>
         <div style={{fontSize:14,fontWeight:600,marginBottom:2}}>Adquisiciones por mes</div>
-        <div style={{fontSize:12,color:'#9ca3af',marginBottom:10}}>Nuevo MRR (barras) · clientes nuevos (debajo) — últimos {Math.min(ultimos6.length,6)} meses cerrados</div>
+        <div style={{fontSize:12,color:'#9ca3af',marginBottom:10}}>Cash recaudado (barras) · clientes nuevos (debajo) — meses cerrados {mesEnCurso?<>+ <span style={{color:'#10b981'}}>mes en curso (parcial *)</span></>:''}</div>
         <ResponsiveContainer width="100%" height={210}>
-          <BarChart data={ultimos6} margin={{top:26,right:16,left:8,bottom:24}}>
+          <BarChart data={chartData} margin={{top:26,right:16,left:8,bottom:24}}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb"/>
             <XAxis dataKey="mes" tick={<MesTick/>} height={40} interval={0}/>
             <YAxis tickFormatter={v=>'$'+Math.round(v/1000)+'k'} tick={{fontSize:11}}/>
-            <Tooltip formatter={(v)=>[fmtUSD(v),'Cash recaudado']} labelFormatter={m=>mesLabel(m)}/>
-            <Bar dataKey="nuevoMrr" name="Cash recaudado" radius={[5,5,0,0]} fill="#10b981">
+            <Tooltip formatter={(v)=>[fmtUSD(v),'Cash recaudado']} labelFormatter={m=>mesLabel(m)+( (chartData.find(r=>r.mes===m)||{}).parcial?' (parcial)':'' )}/>
+            <Bar dataKey="nuevoMrr" name="Cash recaudado" radius={[5,5,0,0]}>
+              {chartData.map((d,i)=><Cell key={i} fill={d.parcial?'#a7f3d0':'#10b981'}/>)}
               <LabelList dataKey="nuevoMrr" position="top" formatter={v=>fmtUSD(v)} style={{fontSize:11,fontWeight:600,fill:'#374151'}}/>
             </Bar>
           </BarChart>
@@ -3156,7 +3188,8 @@ function App({authUser, onLogout}){
 
   // ── Adquisiciones (factura 1) — métricas por mes (excluye el mes en curso) ──
   const adquisicionesMetrics=useMemo(()=>{
-    const mesActual=new Date().toISOString().slice(0,7);
+    const hoy=new Date();
+    const mesActual=hoy.toISOString().slice(0,7);
     const rows=(adquisicionesData||[])
       .filter(a=>a.mes && a.mes<mesActual)
       .map(a=>({
@@ -3169,10 +3202,27 @@ function App({authUser, onLogout}){
     const ult=rows[rows.length-1]||null;
     const prev=rows[rows.length-2]||null;
     const pct=(a,b)=>(b>0?((a-b)/b*100):null);
+    // Mes en curso (parcial) + proyección por días transcurridos
+    const enCurso=(adquisicionesData||[]).find(a=>a.mes===mesActual);
+    const diasMes=hoy.getDate();
+    const diasTotalMes=new Date(hoy.getFullYear(),hoy.getMonth()+1,0).getDate();
+    const pctMes=diasMes/diasTotalMes;
+    const ncCli=enCurso?+enCurso.nuevos_clientes||0:0;
+    const ncMrr=enCurso?+enCurso.nuevo_mrr||0:0;
+    const mesEnCurso=enCurso?{
+      mes:mesActual, nuevosClientes:ncCli, nuevoMrr:ncMrr,
+      ticket:ncCli>0?ncMrr/ncCli:0,
+      proyClientes:pctMes>0?Math.round(ncCli/pctMes):0,
+      proyMrr:pctMes>0?Math.round(ncMrr/pctMes):0,
+    }:null;
+    const chartData=[
+      ...rows.slice(-6),
+      ...(mesEnCurso?[{mes:mesActual,nuevosClientes:ncCli,nuevoMrr:ncMrr,parcial:true}]:[]),
+    ];
     return {
-      rows,
-      ult, prev,
+      rows, ult, prev,
       ultimos6: rows.slice(-6),
+      chartData, mesEnCurso, diasMes, diasTotalMes,
       ticketAct: ult&&ult.nuevosClientes>0 ? ult.nuevoMrr/ult.nuevosClientes : 0,
       ticketPrev: prev&&prev.nuevosClientes>0 ? prev.nuevoMrr/prev.nuevosClientes : 0,
       dClientes: ult&&prev ? pct(ult.nuevosClientes,prev.nuevosClientes) : null,
