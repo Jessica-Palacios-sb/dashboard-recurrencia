@@ -2827,23 +2827,31 @@ function AdquisicionesSection({metrics}){
   const fmtUSD = n => n==null?'—':'$'+Number(n).toLocaleString('es-CO',{maximumFractionDigits:0});
   const fmt    = n => n==null?'—':Number(n).toLocaleString('es-CO',{maximumFractionDigits:0});
   const mesLabel = m => { try { return new Date(m+'-01T00:00:00').toLocaleDateString('es',{month:'short',year:'2-digit'}); } catch { return m; } };
-  const {ult,prev,ticketAct,dClientes,dMrr,vsBase,chartData,mesEnCurso,diasMes,diasTotalMes}=metrics;
+  const {ult,prev,ticketAct,dClientes,dMrr,vsBase,chartData,mesEnCurso,diasMes,diasTotalMes,puente}=metrics;
   if(!ult) return null;
   const refMes = prev ? mesLabel(prev.mes) : 'mes ant.';
   const deltaSub = pct => pct==null ? null : (
     <span className="semaforo-stat-sub" style={{color:pct>=0?'#10b981':'#ef4444'}}>{pct>=0?'▲':'▼'} {Math.abs(pct).toFixed(1)}% vs {refMes}</span>
   );
 
-  // Puente de MRR (fase 1): MRR inicial = Adquisiciones; Expansión/Contracción/Churn = 0; MRR final = Adquisiciones.
-  const A = ult.nuevoMrr;
-  const maxH = 200, esc = v => A>0 ? Math.max(Math.round(Math.abs(v)/A*maxH),0) : 0;
-  const wf = [
-    {name:'MRR inicial', sub:'= adquisiciones', val:A,  color:'#5b8def', total:true},
-    {name:'Expansión',   sub:'upgrades · fase 2', val:0, color:'#6ee7b7', signo:'+'},
-    {name:'Contracción', sub:'downgrades · fase 2', val:0, color:'#fbbf24', signo:'−'},
-    {name:'Churn',       sub:'cancelados · fase 2', val:0, color:'#ef4444', signo:'−'},
-    {name:'MRR final',   sub:'= adquisiciones', val:A,  color:'#5b8def', total:true},
-  ];
+  // Puente de MRR normalizado (base-delta) del último mes cerrado — barras flotantes; cierra exacto.
+  const P = puente;
+  const maxH = 200;
+  let wf = null, wfMaxV = 1;
+  if(P){
+    wfMaxV = Math.max(P.baseIni, P.baseFin) || 1;
+    let run = P.baseIni;
+    const step = (name, sub, delta, color) => { const start=run, end=run+delta; run=end; return { name, sub, delta, color, lo:Math.min(start,end), hi:Math.max(start,end) }; };
+    const prevMes = (()=>{ const d=new Date(P.mes+'-01T00:00:00'); d.setMonth(d.getMonth()-1); return mesLabel(d.toISOString().slice(0,7)); })();
+    wf = [
+      { name:'MRR base inicial', sub:prevMes, val:P.baseIni, color:'#5b8def', total:true, lo:0, hi:P.baseIni },
+      step('Nuevos','entran a la base', P.nuevos, '#10b981'),
+      step('Expansión','suben de plan', P.expansion, '#6ee7b7'),
+      step('Contracción','descuentos', -P.contraccion, '#fbbf24'),
+      step('Churn','dejan la base', -P.churn, '#ef4444'),
+      { name:'MRR base final', sub:mesLabel(P.mes), val:P.baseFin, color:'#5b8def', total:true, lo:0, hi:P.baseFin },
+    ];
+  }
 
   const MesTick = ({x,y,payload}) => {
     const row=(chartData||[]).find(r=>r.mes===payload.value);
@@ -2897,17 +2905,23 @@ function AdquisicionesSection({metrics}){
 
       {/* B. Puente de MRR */}
       <div style={{marginTop:18,padding:'18px 4px 4px'}}>
-        <div style={{fontSize:14,fontWeight:600,marginBottom:2}}>Puente de MRR — movimiento del mes</div>
-        <div style={{fontSize:12,color:'#9ca3af',marginBottom:18}}>Verde suma, ámbar/rojo resta, azul los totales. Expansión, contracción y churn se calcularán en fase 2.</div>
-        <div style={{display:'flex',alignItems:'flex-end',gap:14,height:236,borderBottom:'1px solid #e5e7eb',paddingTop:24}}>
-          {wf.map((b,i)=>(
-            <div key={i} style={{flex:1,display:'flex',flexDirection:'column',justifyContent:'flex-end',alignItems:'center',minWidth:0}}>
-              <div style={{fontSize:12,fontWeight:600,marginBottom:6,whiteSpace:'nowrap',color:b.total?'#374151':(b.signo==='+'?'#10b981':'#9ca3af')}}>
-                {b.total?fmtUSD(b.val):(b.signo+fmtUSD(b.val).replace('$','$'))}
+        <div style={{fontSize:14,fontWeight:600,marginBottom:2}}>Puente de MRR — movimiento de la base recurrente {wf?<>({mesLabel(P.mes)})</>:''}</div>
+        <div style={{fontSize:12,color:'#9ca3af',marginBottom:18}}>MRR recurrente <strong>normalizado</strong> (cada pago se reparte por su frecuencia). Cierra exacto: base ant. + nuevos + expansión − contracción − churn = base mes.</div>
+        {wf ? (<>
+        <div style={{display:'flex',alignItems:'flex-end',gap:14,height:maxH+34,borderBottom:'1px solid #e5e7eb'}}>
+          {wf.map((b,i)=>{
+            const h=Math.max((b.hi-b.lo)/wfMaxV*maxH,2);
+            const bottom=b.lo/wfMaxV*maxH;
+            return (
+              <div key={i} style={{flex:1,display:'flex',flexDirection:'column',justifyContent:'flex-end',alignItems:'center',minWidth:0}}>
+                <div style={{fontSize:11.5,fontWeight:600,marginBottom:5,whiteSpace:'nowrap',color:b.total?'#374151':(b.delta>=0?'#10b981':'#ef4444')}}>
+                  {b.total?fmtUSD(b.val):((b.delta>=0?'+':'−')+fmtUSD(Math.abs(b.delta)))}
+                </div>
+                <div style={{width:'100%',maxWidth:74,height:h,minHeight:2,borderRadius:'4px 4px 0 0',background:b.color}}/>
+                <div style={{height:bottom}}/>
               </div>
-              <div style={{width:'100%',maxWidth:78,height:b.total?esc(b.val):4,minHeight:4,borderRadius:'6px 6px 0 0',background:b.color}}/>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <div style={{display:'flex',gap:14,marginTop:10}}>
           {wf.map((b,i)=>(
@@ -2916,6 +2930,9 @@ function AdquisicionesSection({metrics}){
             </div>
           ))}
         </div>
+        </>) : (
+          <div style={{fontSize:13,color:'#9ca3af',padding:'20px 0'}}>Sin datos suficientes para el puente todavía.</div>
+        )}
       </div>
 
       {/* C. Adquisiciones por mes */}
@@ -2943,6 +2960,7 @@ function App({authUser, onLogout}){
   const [raw,setRaw]=useState([]);
   const [clientesList,setClientesList]=useState([]);
   const [adquisicionesData,setAdquisicionesData]=useState([]);
+  const [mrrNormData,setMrrNormData]=useState([]);
   const [lastUpdate,setLastUpdate]=useState(null);
   const [showChangePassword,setShowChangePassword]=useState(false);
   const [loading,setLoading]=useState(true);
@@ -3107,6 +3125,7 @@ function App({authUser, onLogout}){
       setRaw(rec.data||[]);
       setClientesList(rec.clientes||[]);
       setAdquisicionesData(rec.adquisiciones||[]);
+      setMrrNormData(rec.mrrNorm||[]);
       const completedAt=sync?.log?.completedAt;
       setLastUpdate(completedAt?new Date(completedAt):new Date());
     }).catch(e=>setError(e.message)).finally(()=>setLoading(false));
@@ -3204,17 +3223,25 @@ function App({authUser, onLogout}){
       ...rows.slice(-6),
       ...(mesEnCurso?[{mes:mesActual,nuevosClientes:ncCli,nuevoMrr:ncMrr,parcial:true}]:[]),
     ];
+    // Puente de MRR normalizado (base-delta) del último mes cerrado
+    const mn=(mrrNormData||[]).filter(r=>r.mes<mesActual).sort((a,b)=>a.mes.localeCompare(b.mes));
+    const pb=mn[mn.length-1]||null, pbPrev=mn[mn.length-2]||null;
+    const puente = pb&&pbPrev ? {
+      mes: pb.mes,
+      baseIni:+pbPrev.base_norm, nuevos:+pb.nuevos, expansion:+pb.expansion,
+      contraccion:+pb.contraccion, churn:+pb.churn, baseFin:+pb.base_norm,
+    } : null;
     return {
       rows, ult, prev,
       ultimos6: rows.slice(-6),
-      chartData, mesEnCurso, diasMes, diasTotalMes,
+      chartData, mesEnCurso, diasMes, diasTotalMes, puente,
       ticketAct: ult&&ult.nuevosClientes>0 ? ult.nuevoMrr/ult.nuevosClientes : 0,
       ticketPrev: prev&&prev.nuevosClientes>0 ? prev.nuevoMrr/prev.nuevosClientes : 0,
       dClientes: ult&&prev ? pct(ult.nuevosClientes,prev.nuevosClientes) : null,
       dMrr: ult&&prev ? pct(ult.nuevoMrr,prev.nuevoMrr) : null,
       vsBase: ult&&ult.baseMrr>0 ? ult.nuevoMrr/ult.baseMrr*100 : null,
     };
-  },[adquisicionesData,kpis.porMes]);
+  },[adquisicionesData,mrrNormData,kpis.porMes]);
 
   // ── Insights: 4 factores que frenan la recurrencia ──
   const insights=useMemo(()=>{
