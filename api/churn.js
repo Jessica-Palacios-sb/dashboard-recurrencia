@@ -29,6 +29,27 @@ const SUBS_ZUORA = `(
     AND zuora__cancelleddate__c >= '2024-03-06' AND zuora__cancelleddate__c <= GETDATE()
 )`;
 
+// Cancelaciones únicas por cliente y por "ciclo de vida": una por (cliente, segmento), conservando la más
+// temprana. Un comeback (oportunidad ganada 'Comeback OPS') abre un ciclo nuevo, así que un cliente que canceló
+// antes y después de un comeback cuenta 2; el resto cuenta 1.
+const CANCEL_UNICAS = `(
+  SELECT id, student_id, subscription_start_date, fecha_cancelacion, subscription_status
+  FROM (
+    SELECT seg.*, ROW_NUMBER() OVER (PARTITION BY seg.student_id, seg.segmento ORDER BY seg.fecha_cancelacion ASC, seg.id) AS rn
+    FROM (
+      SELECT c.id, c.student_id, c.subscription_start_date, c.fecha_cancelacion, c.subscription_status,
+        COUNT(k.cb_date) AS segmento
+      FROM ${SUBS_ZUORA} c
+      LEFT JOIN (
+        SELECT student_id, fecha_cierre AS cb_date FROM salesforce.tabla_core_oportunidades
+        WHERE tipo_venta = 'Comeback OPS' AND etapa IN ('Ganada Verificada','Closed Won') AND fecha_cierre IS NOT NULL
+      ) k ON k.student_id = c.student_id AND k.cb_date <= c.fecha_cancelacion
+      GROUP BY c.id, c.student_id, c.subscription_start_date, c.fecha_cancelacion, c.subscription_status
+    ) seg
+  ) z
+  WHERE rn = 1
+)`;
+
 // ── Query 1: Nuevos clientes por mes ─────────────────────────────────────────
 const QUERY_NUEVOS = `
 SELECT
@@ -49,7 +70,7 @@ ORDER BY mes;
 
 // ── Query 2: Cancelaciones por mes, país y tipo ───────────────────────────────
 const QUERY_CANCELACIONES = `
-WITH subs_base AS ${SUBS_ZUORA},
+WITH subs_base AS ${CANCEL_UNICAS},
 casos_cobranza AS (
   SELECT suscripcion, status,
     ROW_NUMBER() OVER(PARTITION BY suscripcion ORDER BY fecha_cierre DESC) AS ultimo_caso
@@ -119,7 +140,7 @@ cancelaciones_mes AS (
   SELECT
     TO_CHAR(DATE_TRUNC('month', fecha_cancelacion), 'YYYY-MM') AS mes,
     COUNT(*) AS cancelaciones
-  FROM ${SUBS_ZUORA} s
+  FROM ${CANCEL_UNICAS} s
   WHERE fecha_cancelacion IS NOT NULL
     AND fecha_cancelacion >= '2024-03-06'
     AND fecha_cancelacion <= GETDATE()
@@ -209,7 +230,7 @@ cancelaciones AS (
       ELSE 'Otro'
     END AS tipo_cancelacion,
     DATEDIFF('month', p.primera_fecha, s.fecha_cancelacion) AS meses_vida_real
-  FROM ${SUBS_ZUORA} s
+  FROM ${CANCEL_UNICAS} s
   JOIN primera_suscripcion p ON s.student_id = p.student_id
   LEFT JOIN casos_cobranza  cob ON s.id = cob.suscripcion AND cob.ultimo_caso = 1
   LEFT JOIN casos_chargeback ch  ON s.id = ch.suscripcion  AND ch.ultimo_caso = 1
@@ -294,7 +315,7 @@ cancel_pais AS (
            'cancelación programada','cancelacion programada',
            'cancelación con reembolso','suscripción cancelada')
       THEN 1 ELSE 0 END) AS voluntaria
-  FROM ${SUBS_ZUORA} s
+  FROM ${CANCEL_UNICAS} s
   LEFT JOIN salesforce.tabla_core_estudiantes e ON s.student_id = e.student_id
   LEFT JOIN (
     SELECT suscripcion, status,

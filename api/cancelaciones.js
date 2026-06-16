@@ -39,6 +39,25 @@ WITH subs_filtradas AS (
     AND zuora__cancelleddate__c <= GETDATE()
     AND zuora__status__c = 'Cancelled'
 ),
+comebacks AS (
+  SELECT student_id, fecha_cierre AS cb_date FROM salesforce.tabla_core_oportunidades
+  WHERE tipo_venta = 'Comeback OPS' AND etapa IN ('Ganada Verificada','Closed Won') AND fecha_cierre IS NOT NULL
+),
+-- Una cancelación por cliente y por "ciclo de vida": un comeback abre un ciclo nuevo, así que cancelar antes y
+-- después de un comeback cuenta 2; el resto cuenta 1. Se conserva la cancelación más temprana de cada ciclo.
+cancel_unicas AS (
+  SELECT id, student_id, subscription_start_date, fecha_cancelacion, subscription_status
+  FROM (
+    SELECT seg.*, ROW_NUMBER() OVER (PARTITION BY seg.student_id, seg.segmento ORDER BY seg.fecha_cancelacion ASC, seg.id) AS rn
+    FROM (
+      SELECT c.id, c.student_id, c.subscription_start_date, c.fecha_cancelacion, c.subscription_status,
+        COUNT(k.cb_date) AS segmento
+      FROM subs_filtradas c
+      LEFT JOIN comebacks k ON k.student_id = c.student_id AND k.cb_date <= c.fecha_cancelacion
+      GROUP BY c.id, c.student_id, c.subscription_start_date, c.fecha_cancelacion, c.subscription_status
+    ) seg
+  ) z WHERE rn = 1
+),
 primera_suscripcion AS (
   SELECT student_id, primera_fecha, tipo_pago_grp
   FROM (
@@ -97,14 +116,10 @@ cancelaciones_clasificadas AS (
       WHEN e.pais_agrupado = 'Colombia'                        THEN 'Colombia'
       WHEN e.pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos'
       ELSE 'Otros'
-    END AS pais_agrupado,
-    ROW_NUMBER() OVER(
-      PARTITION BY p.student_id, DATE_TRUNC('month', s.fecha_cancelacion)
-      ORDER BY s.fecha_cancelacion DESC
-    ) AS rn_cliente_mes
+    END AS pais_agrupado
   FROM primera_suscripcion p
-  -- Solo los que tienen cancelaciones
-  INNER JOIN subs_filtradas s          ON p.student_id = s.student_id
+  -- Una cancelación por cliente por ciclo (cancel_unicas)
+  INNER JOIN cancel_unicas s           ON p.student_id = s.student_id
   LEFT JOIN salesforce.tabla_core_estudiantes e ON p.student_id = e.student_id
   LEFT JOIN casos_cobranza cob         ON s.id = cob.suscripcion AND cob.rn = 1
   LEFT JOIN casos_chargeback ch        ON s.id = ch.suscripcion AND ch.rn = 1
@@ -119,7 +134,6 @@ SELECT
   COUNT(*)                       AS suscripciones,
   AVG(meses_vida)                AS avg_meses_activo
 FROM cancelaciones_clasificadas
-WHERE rn_cliente_mes = 1
 GROUP BY mes_cancel, mes_inicio, tipo_cancelacion, tipo_pago, pais_agrupado, meses_vida
 ORDER BY mes_cancelacion, mes_inicio;
 `;

@@ -87,6 +87,25 @@ const SUBS_ZUORA = `(
     AND zuora__cancelleddate__c >= '2024-03-06' AND zuora__cancelleddate__c <= GETDATE()
 )`;
 
+// Cancelaciones únicas por cliente y por ciclo de comeback (una por (cliente, segmento), la más temprana).
+const CANCEL_UNICAS = `(
+  SELECT id, student_id, subscription_start_date, fecha_cancelacion, subscription_status
+  FROM (
+    SELECT seg.*, ROW_NUMBER() OVER (PARTITION BY seg.student_id, seg.segmento ORDER BY seg.fecha_cancelacion ASC, seg.id) AS rn
+    FROM (
+      SELECT c.id, c.student_id, c.subscription_start_date, c.fecha_cancelacion, c.subscription_status,
+        COUNT(k.cb_date) AS segmento
+      FROM ${SUBS_ZUORA} c
+      LEFT JOIN (
+        SELECT student_id, fecha_cierre AS cb_date FROM salesforce.tabla_core_oportunidades
+        WHERE tipo_venta = 'Comeback OPS' AND etapa IN ('Ganada Verificada','Closed Won') AND fecha_cierre IS NOT NULL
+      ) k ON k.student_id = c.student_id AND k.cb_date <= c.fecha_cancelacion
+      GROUP BY c.id, c.student_id, c.subscription_start_date, c.fecha_cancelacion, c.subscription_status
+    ) seg
+  ) z
+  WHERE rn = 1
+)`;
+
 // ── Endpoints ─────────────────────────────────────────────────────────────────
 const ENDPOINTS = [
 
@@ -427,6 +446,16 @@ WITH subs_filtradas AS (
   FROM (SELECT id, zuora__account__c, zuora__subscriptionstartdate__c, zuora__cancelleddate__c, subscriptionstatus__c, zuora__status__c, isdeleted, ROW_NUMBER() OVER(PARTITION BY id ORDER BY lastmodifieddate DESC) AS rn FROM "salesforce-database".subscriptions)
   WHERE isdeleted = false AND rn = 1 AND zuora__cancelleddate__c >= '2024-03-06' AND zuora__cancelleddate__c <= GETDATE() AND zuora__status__c = 'Cancelled'
 ),
+comebacks AS (SELECT student_id, fecha_cierre AS cb_date FROM salesforce.tabla_core_oportunidades WHERE tipo_venta = 'Comeback OPS' AND etapa IN ('Ganada Verificada','Closed Won') AND fecha_cierre IS NOT NULL),
+cancel_unicas AS (
+  SELECT id, student_id, subscription_start_date, fecha_cancelacion, subscription_status FROM (
+    SELECT seg.*, ROW_NUMBER() OVER (PARTITION BY seg.student_id, seg.segmento ORDER BY seg.fecha_cancelacion ASC, seg.id) AS rn FROM (
+      SELECT c.id, c.student_id, c.subscription_start_date, c.fecha_cancelacion, c.subscription_status, COUNT(k.cb_date) AS segmento
+      FROM subs_filtradas c LEFT JOIN comebacks k ON k.student_id = c.student_id AND k.cb_date <= c.fecha_cancelacion
+      GROUP BY c.id, c.student_id, c.subscription_start_date, c.fecha_cancelacion, c.subscription_status
+    ) seg
+  ) z WHERE rn = 1
+),
 primera_suscripcion AS (
   SELECT student_id, primera_fecha, tipo_pago_grp FROM (
     SELECT student_id, fecha_cierre AS primera_fecha,
@@ -444,8 +473,8 @@ cancelaciones_clasificadas AS (
     DATEDIFF('month', p.primera_fecha, s.fecha_cancelacion) AS meses_vida,
     CASE WHEN ch.numero_caso IS NOT NULL THEN 'Chargeback' WHEN cob.status = 'Cerrado - Cartera Irrecuperable' THEN 'Por mora' WHEN LOWER(s.subscription_status) IN ('cancelada por no pago','suspendida por no pago','cancelada por pago de saldo pendiente') THEN 'Por mora' WHEN LOWER(s.subscription_status) IN ('chargeback','cancelación chargeback prevention','cancelación por chargeback prevention') THEN 'Chargeback' WHEN LOWER(s.subscription_status) IN ('cancelación programada','cancelacion programada','cancelación con reembolso','suscripción cancelada') THEN 'Voluntaria' WHEN LOWER(s.subscription_status) = 'suscripción cancelada desenrolada' THEN 'Desenrolada' ELSE 'Otro' END AS tipo_cancelacion,
     CASE WHEN e.pais_agrupado IN ('México','Mexico') THEN 'México' WHEN e.pais_agrupado = 'Colombia' THEN 'Colombia' WHEN e.pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos' ELSE 'Otros' END AS pais_agrupado,
-    ROW_NUMBER() OVER(PARTITION BY p.student_id, DATE_TRUNC('month', s.fecha_cancelacion) ORDER BY s.fecha_cancelacion DESC) AS rn_cliente_mes
-  FROM primera_suscripcion p INNER JOIN subs_filtradas s ON p.student_id = s.student_id
+    1 AS rn_cliente_mes
+  FROM primera_suscripcion p INNER JOIN cancel_unicas s ON p.student_id = s.student_id
   LEFT JOIN salesforce.tabla_core_estudiantes e ON p.student_id = e.student_id
   LEFT JOIN casos_cobranza cob ON s.id = cob.suscripcion AND cob.rn = 1
   LEFT JOIN casos_chargeback ch ON s.id = ch.suscripcion AND ch.rn = 1
@@ -487,7 +516,7 @@ WHERE o.etapa IN ('Ganada Verificada', 'Closed Won') AND o.tipo_venta = 'Adquisi
   AND ((o.sub_tipo_venta LIKE '%Bootcamp%' AND o.tipo_pago = 'Cuotas') OR o.sub_tipo_venta LIKE '%Suscripción smartBeemo%' OR (o.sub_tipo_venta = 'Mentoría' AND o.tipo_pago = 'Cuotas'))
 GROUP BY DATE_TRUNC('month', o.fecha_cierre) ORDER BY mes;`),
         client.query(`
-WITH subs_base AS ${SUBS_ZUORA},
+WITH subs_base AS ${CANCEL_UNICAS},
 casos_cobranza AS (SELECT suscripcion, status, ROW_NUMBER() OVER(PARTITION BY suscripcion ORDER BY fecha_cierre DESC) AS ultimo_caso FROM salesforce.tabla_intermedia_casos_cobranza),
 casos_chargeback AS (SELECT suscripcion, numero_caso, ROW_NUMBER() OVER(PARTITION BY suscripcion ORDER BY fecha_cierre_real DESC) AS ultimo_caso FROM salesforce.tabla_core_casos WHERE status = 'Cancelado' AND id_registro_caso = '012UH000001iGJpYAM')
 SELECT TO_CHAR(DATE_TRUNC('month', s.fecha_cancelacion), 'YYYY-MM') AS mes,
@@ -502,7 +531,7 @@ WHERE s.fecha_cancelacion IS NOT NULL AND s.fecha_cancelacion >= '2024-03-06' AN
 GROUP BY DATE_TRUNC('month', s.fecha_cancelacion), e.pais_agrupado, 3 ORDER BY mes;`),
         client.query(`
 WITH base_activa AS (SELECT TO_CHAR(DATE_TRUNC('month', f.fecha_pago), 'YYYY-MM') AS mes, COUNT(DISTINCT f.student_id) AS clientes_activos FROM salesforce.tabla_core_invoices_facturas f LEFT JOIN salesforce.tabla_core_oportunidades o ON f.id_oportunidad = o.id WHERE f.invoice_factura = 'invoice' AND f.fecha_pago IS NOT NULL AND f.fecha_pago >= '2024-03-06' AND f.fecha_pago <= GETDATE() AND o.etapa IN ('Ganada Verificada', 'Closed Won') AND f.numero_invoice_factura >= 1 GROUP BY DATE_TRUNC('month', f.fecha_pago)),
-cancelaciones_mes AS (SELECT TO_CHAR(DATE_TRUNC('month', fecha_cancelacion), 'YYYY-MM') AS mes, COUNT(*) AS cancelaciones FROM ${SUBS_ZUORA} s WHERE fecha_cancelacion IS NOT NULL AND fecha_cancelacion >= '2024-03-06' AND fecha_cancelacion <= GETDATE() AND LOWER(COALESCE(subscription_status,'')) NOT IN ('cotización expirada','cotizacion expirada','upgraded','') AND subscription_status IS NOT NULL GROUP BY DATE_TRUNC('month', fecha_cancelacion))
+cancelaciones_mes AS (SELECT TO_CHAR(DATE_TRUNC('month', fecha_cancelacion), 'YYYY-MM') AS mes, COUNT(*) AS cancelaciones FROM ${CANCEL_UNICAS} s WHERE fecha_cancelacion IS NOT NULL AND fecha_cancelacion >= '2024-03-06' AND fecha_cancelacion <= GETDATE() AND LOWER(COALESCE(subscription_status,'')) NOT IN ('cotización expirada','cotizacion expirada','upgraded','') AND subscription_status IS NOT NULL GROUP BY DATE_TRUNC('month', fecha_cancelacion))
 SELECT b.mes, b.clientes_activos, COALESCE(c.cancelaciones,0) AS cancelaciones, ROUND(COALESCE(c.cancelaciones,0)*100.0/NULLIF(b.clientes_activos,0),2) AS tasa_churn FROM base_activa b LEFT JOIN cancelaciones_mes c ON b.mes = c.mes ORDER BY b.mes;`),
         client.query(`
 SELECT TO_CHAR(DATE_TRUNC('month', c.fecha_cierre), 'YYYY-MM') AS mes, c.motivo_cancelacion, c.sub_motivo_cancelacion, c.tipo_cancelacion, COUNT(*) AS casos,
@@ -521,7 +550,7 @@ cancel_pais AS (
     COUNT(*) AS cancelaciones,
     SUM(CASE WHEN ch.numero_caso IS NOT NULL OR cob.status = 'Cerrado - Cartera Irrecuperable' OR LOWER(s.subscription_status) IN ('cancelada por no pago','suspendida por no pago','cancelada por pago de saldo pendiente') THEN 1 ELSE 0 END) AS por_mora,
     SUM(CASE WHEN LOWER(s.subscription_status) IN ('cancelación programada','cancelacion programada','cancelación con reembolso','suscripción cancelada') THEN 1 ELSE 0 END) AS voluntaria
-  FROM ${SUBS_ZUORA} s LEFT JOIN salesforce.tabla_core_estudiantes e ON s.student_id = e.student_id
+  FROM ${CANCEL_UNICAS} s LEFT JOIN salesforce.tabla_core_estudiantes e ON s.student_id = e.student_id
   LEFT JOIN (SELECT suscripcion, status, ROW_NUMBER() OVER(PARTITION BY suscripcion ORDER BY fecha_cierre DESC) AS ult FROM salesforce.tabla_intermedia_casos_cobranza) cob ON s.id = cob.suscripcion AND cob.ult = 1
   LEFT JOIN (SELECT suscripcion, numero_caso, ROW_NUMBER() OVER(PARTITION BY suscripcion ORDER BY fecha_cierre_real DESC) AS ult FROM salesforce.tabla_core_casos WHERE status = 'Cancelado' AND id_registro_caso = '012UH000001iGJpYAM') ch ON s.id = ch.suscripcion AND ch.ult = 1
   WHERE s.fecha_cancelacion IS NOT NULL AND s.fecha_cancelacion >= '2024-03-06' AND s.fecha_cancelacion <= GETDATE() AND LOWER(COALESCE(s.subscription_status,'')) NOT IN ('cotización expirada','cotizacion expirada','upgraded','') AND s.subscription_status IS NOT NULL GROUP BY 1
@@ -540,7 +569,7 @@ cancelaciones AS (
   SELECT s.student_id, s.fecha_cancelacion, s.subscription_status,
     CASE WHEN ch.numero_caso IS NOT NULL THEN 'Chargeback' WHEN cob.status = 'Cerrado - Cartera Irrecuperable' THEN 'Por mora' WHEN LOWER(s.subscription_status) IN ('cancelada por no pago','suspendida por no pago','cancelada por pago de saldo pendiente') THEN 'Por mora' WHEN LOWER(s.subscription_status) IN ('chargeback','cancelación chargeback prevention','cancelación por chargeback prevention') THEN 'Chargeback' WHEN LOWER(s.subscription_status) IN ('cancelación programada','cancelacion programada','cancelación con reembolso','suscripción cancelada') THEN 'Voluntaria' WHEN LOWER(s.subscription_status) = 'suscripción cancelada desenrolada' THEN 'Desenrolada' ELSE 'Otro' END AS tipo_cancelacion,
     DATEDIFF('month', p.primera_fecha, s.fecha_cancelacion) AS meses_vida_real
-  FROM ${SUBS_ZUORA} s JOIN primera_suscripcion p ON s.student_id = p.student_id
+  FROM ${CANCEL_UNICAS} s JOIN primera_suscripcion p ON s.student_id = p.student_id
   LEFT JOIN casos_cobranza cob ON s.id = cob.suscripcion AND cob.ultimo_caso = 1
   LEFT JOIN casos_chargeback ch ON s.id = ch.suscripcion AND ch.ultimo_caso = 1
   WHERE s.fecha_cancelacion IS NOT NULL AND s.fecha_cancelacion >= '2024-03-06' AND s.fecha_cancelacion <= GETDATE()
