@@ -4,6 +4,10 @@
   "outputDirectory": "build",
 "routes": [
     {
+      "src": "/api/facturacion",
+      "dest": "/api/salud-cohortes?fuente=facturacion"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/api/$1"
     },

@@ -30,6 +30,14 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const redis = getRedis();
+
+  // Ruteo de Facturación (vía rewrite en vercel.json): solo lee el cache que puebla el sync.
+  // Vive aquí para no superar el límite de 12 Serverless Functions del plan Hobby.
+  if (req.query.fuente === 'facturacion') {
+    const fc = await readCache(redis, 'cache:facturacion');
+    return res.status(200).json(fc || { funnel: [], cohorte: [] });
+  }
+
   const isSyncReq = req.headers['x-sync-secret'] === process.env.CRON_SECRET;
   if (!isSyncReq) {
     const cached = await readCache(redis, CACHE_KEY);
