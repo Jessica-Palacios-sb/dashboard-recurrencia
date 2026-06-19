@@ -2955,6 +2955,8 @@ function FacturacionTab({data}){
   const COLG={green:'#16a34a',amber:'#d97706',red:'#dc2626'};
   const colPag=p=>p>=0.65?'green':p>=0.45?'amber':'red';
   const colPvp=v=>v>=0.03?'green':v>=-0.03?'amber':'red';
+  const thR={padding:'8px 10px',textAlign:'right',position:'sticky',top:0,background:'#fff',borderBottom:'1.5px solid #e5e7eb',zIndex:1};
+  const thL={...thR,textAlign:'left'};
 
   const sel=(val,set,opts,label)=>(
     <label style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12,color:'#555'}}>{label}
@@ -3025,20 +3027,20 @@ function FacturacionTab({data}){
       <SectionTitle>Resumen por cohorte</SectionTitle>
       <p style={{margin:'-4px 0 14px',fontSize:12,color:'#9ca3af'}}>Por mes de cierre de la oportunidad. Importe esperado, ticket, meta a hoy y cobrado real.</p>
       {resRows.length===0 ? <div style={{fontSize:13,color:'#9ca3af',padding:'12px 0'}}>Sin datos para el filtro.</div> : (
-      <div style={{overflowX:'auto'}}>
+      <div style={{overflowX:'auto',overflowY:'auto',maxHeight:440,border:'1px solid #eef0f2',borderRadius:8}}>
         <table style={{borderCollapse:'collapse',fontSize:12,width:'100%',minWidth:760}}>
           <thead>
-            <tr style={{borderBottom:'1px solid #e5e7eb',color:'#888'}}>
-              <th style={{padding:'7px 10px',textAlign:'left'}}>Cohorte</th>
-              <th style={{padding:'7px 10px',textAlign:'right'}}>Sales</th>
-              <th style={{padding:'7px 10px',textAlign:'right'}}>Facturas</th>
-              <th style={{padding:'7px 10px',textAlign:'right'}}>Importe</th>
-              <th style={{padding:'7px 10px',textAlign:'right'}}>Ticket</th>
-              <th style={{padding:'7px 10px',textAlign:'right'}}>Meta a hoy</th>
-              <th style={{padding:'7px 10px',textAlign:'right'}}>Proyección</th>
-              <th style={{padding:'7px 10px',textAlign:'right'}}>% Pagado</th>
-              <th style={{padding:'7px 10px',textAlign:'right'}}>Pago / Proy.</th>
-              <th style={{padding:'7px 10px',textAlign:'right'}}>Total pagado</th>
+            <tr style={{color:'#888'}}>
+              <th style={thL}>Cohorte</th>
+              <th style={thR}>Sales</th>
+              <th style={thR}>Facturas</th>
+              <th style={thR}>Importe</th>
+              <th style={thR}>Ticket</th>
+              <th style={thR}>Meta a hoy</th>
+              <th style={thR}>Proyección</th>
+              <th style={thR}>% Pagado</th>
+              <th style={thR}>Pago / Proy.</th>
+              <th style={thR}>Total pagado</th>
             </tr>
           </thead>
           <tbody>
