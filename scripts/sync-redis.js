@@ -741,6 +741,11 @@ detalle AS (
       WHEN u.id_student IS NOT NULL AND i.ultima_invoice_factura = 1 AND i.tipo_pago = 'Contado' AND c.fecha_cancelacion IS NOT NULL THEN 1
       WHEN u.id_student IS NOT NULL AND i.ultima_invoice_factura = 1 AND u.ssub_tipo_venta = 'Saldo pendiente suscripción' THEN 1
       ELSE 0 END Up,
+    CASE WHEN u.id_student IS NOT NULL AND i.ultima_invoice_factura = 1 AND c.status_cancelacion IN ('Cancelada por pago de saldo pendiente','Upgraded') AND c.fecha_cancelacion IS NOT NULL THEN u.payment_amount_usd
+      WHEN u.id_student IS NOT NULL AND i.ultima_invoice_factura = 1 AND i.tipo_pago = 'Contado' AND c.fecha_cancelacion IS NOT NULL THEN u.payment_amount_usd
+      WHEN u.id_student IS NOT NULL AND i.ultima_invoice_factura = 1 AND u.ssub_tipo_venta = 'Saldo pendiente suscripción' THEN u.payment_amount_usd
+      ELSE 0 END AS cash_up,
+    CASE WHEN TRIM(COALESCE(i.num_cuotas::varchar,'')) ~ '^[0-9]+$' THEN CAST(i.num_cuotas AS INT) ELSE NULL END AS nc,
     CASE WHEN i.estado = 'Pagada' AND date_trunc('month', i.due_date) = date_trunc('month', i.fecha_pago) THEN 'Pago mismo mes'
       WHEN i.estado = 'Reembolsada' AND date_trunc('month', i.due_date) = date_trunc('month', i.fecha_pago) THEN 'Pago con devolución mismo mes'
       WHEN i.estado = 'Pagada' AND date_trunc('month', i.due_date) != date_trunc('month', i.fecha_pago) THEN 'Pago despues'
@@ -774,10 +779,28 @@ cohorte AS (
   FROM detalle WHERE fecha_cierre IS NOT NULL AND due_date IS NOT NULL GROUP BY 2,3,4,5,6
 )
 SELECT * FROM funnel WHERE k1 IS NOT NULL UNION ALL SELECT * FROM cohorte`;
+      // Resumen por cohorte (mes de cierre): sales, facturas, importe, meta a hoy, total pagado.
+      const QUERY_RESUMEN = `${DETALLE}
+SELECT pais, tipo_cliente,
+  CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago,
+  TO_CHAR(fecha_cierre, 'YYYY-MM') AS cohorte,
+  SUM(CASE WHEN numero_invoice_factura = 1 THEN 1 ELSE 0 END) AS sales,
+  SUM(CASE WHEN ultima_invoice_factura = 1 AND tipo_pago = 'Cuotas' THEN nc
+           WHEN ultima_invoice_factura = 1 THEN numero_invoice_factura ELSE 0 END) AS facturas,
+  ROUND(SUM(CASE WHEN ultima_invoice_factura = 1 AND tipo_pago = 'Cuotas' THEN importe
+           WHEN ultima_invoice_factura = 1 THEN COALESCE(payment_amount_usd,0) + COALESCE(cash_up,0) ELSE 0 END)::numeric, 2) AS importe,
+  ROUND(SUM(CASE WHEN ultima_invoice_factura = 1 AND tipo_pago = 'Cuotas' AND nc > 0
+           THEN (importe / nc) * LEAST(DATEDIFF('month', fecha_cierre, GETDATE()) + 1, nc) ELSE 0 END)::numeric, 2) AS meta_hoy,
+  ROUND(SUM(COALESCE(payment_amount_usd,0) + COALESCE(cash_up,0))::numeric, 2) AS total_pagado
+FROM detalle
+WHERE fecha_cierre IS NOT NULL
+GROUP BY 1,2,3,4`;
       const r = await client.query(QUERY);
+      const rr = await client.query(QUERY_RESUMEN);
       const funnel = r.rows.filter(x => x.tipo === 'funnel').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, razon: x.k1, oportunidades: +x.n, cash_en_riesgo: +x.cash || 0 }));
       const cohorte = r.rows.filter(x => x.tipo === 'cohorte').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.k1, mes_vencimiento: x.k2, invoices: +x.n }));
-      return { funnel, cohorte };
+      const resumen = rr.rows.map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.cohorte, sales: +x.sales, facturas: +x.facturas, importe: +x.importe, meta_hoy: +x.meta_hoy, total_pagado: +x.total_pagado }));
+      return { funnel, cohorte, resumen };
     },
   },
 

@@ -2945,6 +2945,14 @@ function FacturacionTab({data}){
   const byTipo={}; fF.forEach(r=>{ if(!byTipo[r.tipo_cliente])byTipo[r.tipo_cliente]={}; byTipo[r.tipo_cliente][r.razon]=(byTipo[r.tipo_cliente][r.razon]||0)+ +r.oportunidades; });
   const tipoRows=Object.entries(byTipo).map(([k,v])=>({tipo:k,vals:v,total:Object.values(v).reduce((a,b)=>a+b,0)})).sort((a,b)=>b.total-a.total).slice(0,8);
 
+  // Resumen por cohorte (mes de cierre): sales, facturas, importe, ticket, meta a hoy, proyección, total pagado
+  const resAgg={};
+  (data.resumen||[]).filter(matchFiltros).forEach(r=>{
+    if(!resAgg[r.cohorte])resAgg[r.cohorte]={sales:0,facturas:0,importe:0,meta:0,pagado:0};
+    const a=resAgg[r.cohorte]; a.sales+=+r.sales; a.facturas+=+r.facturas; a.importe+=+r.importe; a.meta+=+r.meta_hoy; a.pagado+=+r.total_pagado;
+  });
+  const resRows=Object.keys(resAgg).sort().map(c=>{const a=resAgg[c];return {cohorte:c,sales:a.sales,facturas:a.facturas,importe:a.importe,ticket:a.facturas>0?a.importe/a.facturas:0,meta:a.meta,proy:a.importe>0?a.meta/a.importe:0,pagado:a.pagado};});
+
   const sel=(val,set,opts,label)=>(
     <label style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12,color:'#555'}}>{label}
       <select value={val} onChange={e=>set(e.target.value)} style={{fontFamily:'inherit',fontSize:12,padding:'5px 8px',border:'0.5px solid #ddd',borderRadius:6,background:'#fff'}}>
@@ -3004,6 +3012,43 @@ function FacturacionTab({data}){
                   return <td key={c} style={{textAlign:'center',padding:'7px 6px',borderRadius:5,background:cohColor(v,m0),fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap'}}>{modo==='pct'?(m0>0?Math.round(v/m0*100)+'%':'—'):fmt(v)}</td>; })}
               </tr>
             );})}
+          </tbody>
+        </table>
+      </div>
+      )}
+    </section>
+
+    <section className="chart-section">
+      <SectionTitle>Resumen por cohorte</SectionTitle>
+      <p style={{margin:'-4px 0 14px',fontSize:12,color:'#9ca3af'}}>Por mes de cierre de la oportunidad. Importe esperado, ticket, meta a hoy y cobrado real.</p>
+      {resRows.length===0 ? <div style={{fontSize:13,color:'#9ca3af',padding:'12px 0'}}>Sin datos para el filtro.</div> : (
+      <div style={{overflowX:'auto'}}>
+        <table style={{borderCollapse:'collapse',fontSize:12,width:'100%',minWidth:760}}>
+          <thead>
+            <tr style={{borderBottom:'1px solid #e5e7eb',color:'#888'}}>
+              <th style={{padding:'7px 10px',textAlign:'left'}}>Cohorte</th>
+              <th style={{padding:'7px 10px',textAlign:'right'}}>Sales</th>
+              <th style={{padding:'7px 10px',textAlign:'right'}}>Facturas</th>
+              <th style={{padding:'7px 10px',textAlign:'right'}}>Importe</th>
+              <th style={{padding:'7px 10px',textAlign:'right'}}>Ticket</th>
+              <th style={{padding:'7px 10px',textAlign:'right'}}>Meta a hoy</th>
+              <th style={{padding:'7px 10px',textAlign:'right'}}>Proyección</th>
+              <th style={{padding:'7px 10px',textAlign:'right'}}>Total pagado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {resRows.map(r=>(
+              <tr key={r.cohorte} style={{borderBottom:'1px solid #f3f4f6',color:'#374151'}}>
+                <td style={{padding:'7px 10px',textAlign:'left',fontWeight:600}}>{mesCorto(r.cohorte)}</td>
+                <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmt(r.sales)}</td>
+                <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmt(r.facturas)}</td>
+                <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtUSD(r.importe)}</td>
+                <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtUSD(r.ticket)}</td>
+                <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtUSD(r.meta)}</td>
+                <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{(r.proy*100).toFixed(1)}%</td>
+                <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtUSD(r.pagado)}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -3188,10 +3233,10 @@ function App({authUser, onLogout}){
     }
     if(activeTab==='Facturación' && !facturacion && !facturacionLoading){
       setFacturacionLoading(true);
-      fetch('/api/facturacion').then(r=>r.json()).then(({funnel,cohorte,error})=>{
+      fetch('/api/facturacion').then(r=>r.json()).then(({funnel,cohorte,resumen,error})=>{
         if(error)throw new Error(error);
-        setFacturacion({funnel:funnel||[], cohorte:cohorte||[]});
-      }).catch(()=>setFacturacion({funnel:[],cohorte:[]})).finally(()=>setFacturacionLoading(false));
+        setFacturacion({funnel:funnel||[], cohorte:cohorte||[], resumen:resumen||[]});
+      }).catch(()=>setFacturacion({funnel:[],cohorte:[],resumen:[]})).finally(()=>setFacturacionLoading(false));
     }
 
   },[activeTab,cancelaciones,churn,facturacion,facturacionLoading]);
