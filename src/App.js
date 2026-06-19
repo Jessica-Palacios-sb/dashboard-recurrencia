@@ -2951,7 +2951,10 @@ function FacturacionTab({data}){
     if(!resAgg[r.cohorte])resAgg[r.cohorte]={sales:0,facturas:0,importe:0,meta:0,pagado:0};
     const a=resAgg[r.cohorte]; a.sales+=+r.sales; a.facturas+=+r.facturas; a.importe+=+r.importe; a.meta+=+r.meta_hoy; a.pagado+=+r.total_pagado;
   });
-  const resRows=Object.keys(resAgg).sort().map(c=>{const a=resAgg[c];return {cohorte:c,sales:a.sales,facturas:a.facturas,importe:a.importe,ticket:a.facturas>0?a.importe/a.facturas:0,meta:a.meta,proy:a.importe>0?a.meta/a.importe:0,pagado:a.pagado};});
+  const resRows=Object.keys(resAgg).sort().map(c=>{const a=resAgg[c];return {cohorte:c,sales:a.sales,facturas:a.facturas,importe:a.importe,ticket:a.facturas>0?a.importe/a.facturas:0,meta:a.meta,proy:a.importe>0?a.meta/a.importe:0,pagado:a.pagado,pctPag:a.importe>0?a.pagado/a.importe:0,pvp:a.meta>0?a.pagado/a.meta-1:null};});
+  const COLG={green:'#16a34a',amber:'#d97706',red:'#dc2626'};
+  const colPag=p=>p>=0.65?'green':p>=0.45?'amber':'red';
+  const colPvp=v=>v>=0.03?'green':v>=-0.03?'amber':'red';
 
   const sel=(val,set,opts,label)=>(
     <label style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12,color:'#555'}}>{label}
@@ -3033,6 +3036,8 @@ function FacturacionTab({data}){
               <th style={{padding:'7px 10px',textAlign:'right'}}>Ticket</th>
               <th style={{padding:'7px 10px',textAlign:'right'}}>Meta a hoy</th>
               <th style={{padding:'7px 10px',textAlign:'right'}}>Proyección</th>
+              <th style={{padding:'7px 10px',textAlign:'right'}}>% Pagado</th>
+              <th style={{padding:'7px 10px',textAlign:'right'}}>Pago / Proy.</th>
               <th style={{padding:'7px 10px',textAlign:'right'}}>Total pagado</th>
             </tr>
           </thead>
@@ -3046,6 +3051,8 @@ function FacturacionTab({data}){
                 <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtUSD(r.ticket)}</td>
                 <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtUSD(r.meta)}</td>
                 <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{(r.proy*100).toFixed(1)}%</td>
+                <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}><span style={{color:COLG[colPag(r.pctPag)],fontWeight:600}}>● {(r.pctPag*100).toFixed(1)}%</span></td>
+                <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{r.pvp==null?<span style={{color:'#9ca3af'}}>—</span>:<span style={{color:COLG[colPvp(r.pvp)],fontWeight:600}}>{colPvp(r.pvp)==='green'?'▲':colPvp(r.pvp)==='amber'?'▬':'▼'} {(r.pvp>=0?'+':'')+(r.pvp*100).toFixed(1)}%</span>}</td>
                 <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtUSD(r.pagado)}</td>
               </tr>
             ))}

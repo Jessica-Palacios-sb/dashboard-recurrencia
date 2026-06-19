@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup · Resumen por cohorte — formato condicional</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+  :root{
+    --gray-bg:#f2f2f2; --border:#e0e0e0; --text:#111; --text2:#555; --text3:#888;
+    --green:#16a34a; --green-bg:#dcfce7; --amber:#d97706; --amber-bg:#fef3c7; --red:#dc2626; --red-bg:#fee2e2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',system-ui,sans-serif;background:var(--gray-bg);color:var(--text);padding:0 0 60px;}
+  .picker{position:sticky;top:0;z-index:5;background:#111;color:#fff;padding:12px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .picker b{font-size:14px;}
+  .picker span{font-size:12px;color:#bbb;}
+  .picker .opts{display:flex;gap:8px;margin-left:auto;}
+  .picker button{font-family:inherit;font-size:12px;font-weight:600;padding:7px 14px;border-radius:8px;border:1px solid #333;background:#1c1c1c;color:#ddd;cursor:pointer;}
+  .picker button.active{background:#FFD700;color:#111;border-color:#FFD700;}
+  .wrap{max-width:1180px;margin:22px auto;padding:0 24px;}
+  .section{background:#fff;border:0.5px solid var(--border);border-radius:10px;padding:18px 20px;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
+  .stitle{font-size:14px;font-weight:600;margin-bottom:2px;}
+  .ssub{font-size:12px;color:var(--text3);margin-bottom:16px;}
+
+  table{border-collapse:collapse;font-size:12.5px;width:100%;}
+  thead th{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);padding:8px 12px;border-bottom:1.5px solid var(--border);white-space:nowrap;}
+  thead th.r{text-align:right;}
+  tbody td{padding:9px 12px;border-bottom:1px solid #f3f4f6;color:#374151;font-variant-numeric:tabular-nums;}
+  tbody td.r{text-align:right;}
+  tbody tr:hover{background:#fafafa;}
+  td.coh{font-weight:600;color:#111;}
+
+  /* celdas con formato condicional */
+  .cell-bg{border-radius:6px;padding:4px 8px;display:inline-block;min-width:62px;text-align:right;font-weight:600;}
+  .pill{border-radius:20px;padding:3px 9px;font-size:11.5px;font-weight:600;display:inline-flex;align-items:center;gap:4px;}
+  .bar-wrap{display:flex;align-items:center;gap:8px;justify-content:flex-end;}
+  .bar-track{width:70px;height:7px;border-radius:4px;background:#eef0f2;overflow:hidden;flex-shrink:0;}
+  .bar-fill{height:100%;border-radius:4px;}
+  .ico{font-size:12px;}
+  .leyenda{margin-top:14px;font-size:11px;color:var(--text3);display:flex;gap:18px;flex-wrap:wrap;}
+  .leyenda i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle;}
+  .hide{display:none;}
+</style>
+</head>
+<body>
+<div class="picker">
+  <b>Mockup · Resumen por cohorte</b>
+  <span>Formato condicional en <b style="color:#FFD700">% Pagado</b> y <b style="color:#FFD700">Pago / Proyección</b> — elige un estilo</span>
+  <div class="opts">
+    <button data-s="A" class="active" onclick="sel('A')">A · Colores de fondo</button>
+    <button data-s="B" onclick="sel('B')">B · Iconos + texto</button>
+    <button data-s="C" onclick="sel('C')">C · Barras + badges</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="section">
+    <div class="stitle">Resumen por cohorte</div>
+    <div class="ssub">Por mes de cierre de la oportunidad · ejemplo con tipo de pago = Cuotas. <b id="estilo-lbl">Estilo A</b></div>
+    <table>
+      <thead>
+        <tr>
+          <th>Cohorte</th>
+          <th class="r">Sales</th>
+          <th class="r">Facturas</th>
+          <th class="r">Importe</th>
+          <th class="r">Ticket</th>
+          <th class="r">Meta a hoy</th>
+          <th class="r">Proyección</th>
+          <th class="r" style="color:#92700a">% Pagado</th>
+          <th class="r" style="color:#92700a">Pago / Proy.</th>
+          <th class="r">Total pagado</th>
+        </tr>
+      </thead>
+      <tbody id="tb"></tbody>
+    </table>
+    <div class="leyenda" id="leyenda"></div>
+  </div>
+</div>
+
+<script>
+  // datos de ejemplo (cuotas) — variados para mostrar el formato
+  const rows=[
+    {c:'ago 25',sales:980, fact:9800, imp:280000, meta:238000, pag:202300},
+    {c:'sep 25',sales:1120,fact:11200,imp:320000, meta:272000, pag:258400},
+    {c:'oct 25',sales:1080,fact:10800,imp:300000, meta:240000, pag:244800},
+    {c:'nov 25',sales:1263,fact:12321,imp:352868, meta:230130, pag:253143},
+    {c:'dic 25',sales:1522,fact:16310,imp:416700, meta:247383, pag:192959},
+    {c:'ene 26',sales:1895,fact:21355,imp:551099, meta:258483, pag:258483},
+  ];
+  const usd=n=>'$'+Math.round(n).toLocaleString('es-CO');
+  const pct=n=>(n*100).toFixed(1)+'%';
+  const spct=n=>(n>=0?'+':'')+(n*100).toFixed(1)+'%';
+
+  // umbrales
+  function colPagado(p){ if(p>=0.65)return['green'];if(p>=0.45)return['amber'];return['red']; }   // % pagado
+  function colProy(v){ if(v>=0.03)return['green'];if(v>=-0.03)return['amber'];return['red']; }       // pago/proy
+  const C={green:{fg:'var(--green)',bg:'var(--green-bg)'},amber:{fg:'var(--amber)',bg:'var(--amber-bg)'},red:{fg:'var(--red)',bg:'var(--red-bg)'}};
+
+  let estilo='A';
+  function render(){
+    const tb=document.getElementById('tb'); tb.innerHTML='';
+    document.getElementById('estilo-lbl').textContent='Estilo '+estilo;
+    rows.forEach(r=>{
+      const ticket=r.imp/r.fact, proy=r.meta/r.imp, pPag=r.pag/r.imp, pvp=r.pag/r.meta-1;
+      const kPag=colPagado(pPag)[0], kPvp=colProy(pvp)[0];
+      let pagCell, pvpCell;
+      if(estilo==='A'){
+        pagCell=`<span class="cell-bg" style="background:${C[kPag].bg};color:${C[kPag].fg}">${pct(pPag)}</span>`;
+        pvpCell=`<span class="cell-bg" style="background:${C[kPvp].bg};color:${C[kPvp].fg}">${spct(pvp)}</span>`;
+      } else if(estilo==='B'){
+        const ip=kPag==='green'?'●':kPag==='amber'?'●':'●';
+        const iv=kPvp==='green'?'▲':kPvp==='amber'?'▬':'▼';
+        pagCell=`<span style="color:${C[kPag].fg};font-weight:600"><span class="ico">${ip}</span> ${pct(pPag)}</span>`;
+        pvpCell=`<span style="color:${C[kPvp].fg};font-weight:600"><span class="ico">${iv}</span> ${spct(pvp)}</span>`;
+      } else {
+        pagCell=`<div class="bar-wrap"><span class="bar-track"><span class="bar-fill" style="width:${Math.min(pPag*100,100)}%;background:${C[kPag].fg}"></span></span><b style="color:${C[kPag].fg};min-width:46px;text-align:right">${pct(pPag)}</b></div>`;
+        const iv=kPvp==='green'?'▲':kPvp==='amber'?'▬':'▼';
+        pvpCell=`<span class="pill" style="background:${C[kPvp].bg};color:${C[kPvp].fg}"><span>${iv}</span>${spct(pvp)}</span>`;
+      }
+      tb.insertAdjacentHTML('beforeend',`<tr>
+        <td class="coh">${r.c}</td>
+        <td class="r">${r.sales.toLocaleString()}</td>
+        <td class="r">${r.fact.toLocaleString()}</td>
+        <td class="r">${usd(r.imp)}</td>
+        <td class="r">${usd(ticket)}</td>
+        <td class="r">${usd(r.meta)}</td>
+        <td class="r">${pct(proy)}</td>
+        <td class="r">${pagCell}</td>
+        <td class="r">${pvpCell}</td>
+        <td class="r">${usd(r.pag)}</td>
+      </tr>`);
+    });
+    document.getElementById('leyenda').innerHTML =
+      '<span><i style="background:var(--green)"></i>Al día / adelantado</span>'+
+      '<span><i style="background:var(--amber)"></i>En el límite (±3%)</span>'+
+      '<span><i style="background:var(--red)"></i>Atrasado / bajo</span>'+
+      '<span style="color:#aaa">% Pagado: verde ≥65% · ámbar 45–65% · rojo &lt;45% &nbsp;|&nbsp; Pago/Proy: verde ≥+3% · ámbar ±3% · rojo &lt;−3%</span>';
+  }
+  function sel(s){ estilo=s; document.querySelectorAll('.picker button').forEach(b=>b.classList.toggle('active',b.dataset.s===s)); render(); }
+  render();
+</script>
+</body>
+</html>
