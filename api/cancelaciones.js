@@ -179,7 +179,7 @@ const getRedis = () => {
   return _redis;
 };
 const CACHE_KEY = 'cache:cancelaciones';
-const CACHE_TTL = 18000;
+const CACHE_TTL = 604800;
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');

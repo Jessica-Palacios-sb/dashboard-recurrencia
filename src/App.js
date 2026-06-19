@@ -2730,8 +2730,9 @@ function SyncTab({authUser}){
   };
 
   const LABELS={
-    'recurrencia':'Recurrencia','salud':'Salud','salud-cohortes':'Cohortes',
+    'recurrencia':'Recurrencia y Adquisiciones','salud':'Salud','salud-cohortes':'Cohortes',
     'cancelaciones':'Cancelaciones','churn':'Churn (+ Tiempo de Vida)','marketing':'Marketing / CAC',
+    'facturacion':'Facturación',
   };
 
   const fmtTs=iso=>{
@@ -2918,10 +2919,11 @@ function FacturacionTab({data}){
   const funnel=data.funnel||[], cohorte=data.cohorte||[];
   const paises=['Todos',...[...new Set(funnel.map(r=>r.pais))].filter(Boolean).sort()];
   const tipos=['Todos',...[...new Set(funnel.map(r=>r.tipo_cliente))].filter(Boolean).sort()];
-  const pagos=['Todos','Contado','Cuotas'];
+  const pagos=['Todos','Recurrencia','Cuotas'];
 
-  const fF=funnel.filter(r=>(pais==='Todos'||r.pais===pais)&&(tipoCli==='Todos'||r.tipo_cliente===tipoCli)&&(tipoPago==='Todos'||r.tipo_pago===tipoPago));
-  const fC=cohorte.filter(r=>(pais==='Todos'||r.pais===pais)&&(tipoCli==='Todos'||r.tipo_cliente===tipoCli));
+  const matchFiltros=r=>(pais==='Todos'||r.pais===pais)&&(tipoCli==='Todos'||r.tipo_cliente===tipoCli)&&(tipoPago==='Todos'||r.tipo_pago===tipoPago);
+  const fF=funnel.filter(matchFiltros);
+  const fC=cohorte.filter(matchFiltros);
 
   const ORDER=['Por mora','En mora sin cancelar','Voluntaria','Upgrade','Chargeback'];
   const COL={'Por mora':'#ef4444','En mora sin cancelar':'#f97316','Voluntaria':'#f59e0b','Upgrade':'#6366f1','Chargeback':'#8b5cf6'};

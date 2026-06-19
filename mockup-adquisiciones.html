@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — Adquisiciones · Panel de recurrencia</title>
+<style>
+  :root{
+    --bg:#0d1117;
+    --panel:#161b22;
+    --panel-2:#1c2230;
+    --border:rgba(255,255,255,0.08);
+    --border-2:rgba(255,255,255,0.14);
+    --text:#e6edf3;
+    --dim:#8b949e;
+    --dim-2:#6e7681;
+    --base:#5b8def;      /* MRR inicial / final */
+    --new:#34d399;       /* adquisiciones (estrella) */
+    --exp:#6ee7b7;       /* expansión */
+    --down:#fbbf24;      /* contracción */
+    --churn:#f87171;     /* churn */
+    --shadow:0 1px 0 rgba(255,255,255,0.03), 0 8px 24px rgba(0,0,0,0.35);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:'Inter','Segoe UI',system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased; padding:28px;
+    font-variant-numeric:tabular-nums;
+  }
+  .wrap{max-width:1080px; margin:0 auto;}
+
+  /* ---- header ---- */
+  .head{display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:22px; flex-wrap:wrap;}
+  .head h1{font-size:20px; font-weight:700; margin:0; letter-spacing:-0.01em;}
+  .head .sub{color:var(--dim); font-size:13px; margin-top:3px;}
+  .pill{font-size:11px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase;
+        color:var(--new); background:rgba(52,211,153,0.10); border:1px solid rgba(52,211,153,0.25);
+        padding:5px 10px; border-radius:999px;}
+  .month-tag{font-size:12px; color:var(--dim); border:1px solid var(--border); border-radius:8px; padding:6px 12px; background:var(--panel);}
+
+  /* ---- KPI cards ---- */
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px; margin-bottom:22px;}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px; box-shadow:var(--shadow); position:relative; overflow:hidden;}
+  .card::before{content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--accent,transparent);}
+  .card .label{font-size:12px; color:var(--dim); display:flex; align-items:center; gap:6px; margin-bottom:10px;}
+  .card .q{display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; border-radius:50%; border:1px solid var(--border-2); color:var(--dim-2); font-size:10px; cursor:help;}
+  .card .value{font-size:28px; font-weight:700; letter-spacing:-0.02em; line-height:1;}
+  .card .delta{font-size:12px; margin-top:9px; display:inline-flex; align-items:center; gap:5px;}
+  .up{color:var(--new);} .dn{color:var(--churn);}
+  .card .foot{font-size:11px; color:var(--dim-2); margin-top:4px;}
+
+  /* ---- section panel ---- */
+  .panel{background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:22px; box-shadow:var(--shadow); margin-bottom:18px;}
+  .panel .ptitle{font-size:14px; font-weight:600; margin:0 0 2px;}
+  .panel .psub{font-size:12px; color:var(--dim); margin:0 0 20px;}
+
+  /* ---- waterfall ---- */
+  .wf{display:flex; align-items:flex-end; gap:14px; height:300px; padding-top:26px; border-bottom:1px solid var(--border); position:relative;}
+  .gl{position:absolute; left:0; right:0; border-top:1px dashed rgba(255,255,255,0.05);}
+  .wcol{flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; min-width:0; position:relative; z-index:1;}
+  .wval{font-size:12px; font-weight:600; margin-bottom:6px; white-space:nowrap;}
+  .wbar{width:100%; max-width:78px; border-radius:6px 6px 0 0; min-height:6px;}
+  .wspace{width:100%;}
+  .wnames{display:flex; gap:14px; margin-top:12px;}
+  .wname{flex:1; text-align:center; font-size:11.5px; color:var(--dim); line-height:1.35;}
+  .wname b{color:var(--text); font-weight:600; display:block; font-size:12px;}
+  .legend{display:flex; flex-wrap:wrap; gap:16px; margin-top:18px; font-size:11.5px; color:var(--dim);}
+  .legend span{display:inline-flex; align-items:center; gap:7px;}
+  .dot{width:10px; height:10px; border-radius:3px; display:inline-block;}
+
+  /* ---- bottom grid ---- */
+  .grid2{display:grid; grid-template-columns:1.4fr 1fr; gap:18px;}
+  @media(max-width:760px){ .grid2{grid-template-columns:1fr;} }
+
+  /* trend */
+  .trend{display:flex; align-items:flex-end; gap:12px; height:150px; border-bottom:1px solid var(--border); padding-top:10px;}
+  .tcol{flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center;}
+  .tval{font-size:11px; color:var(--dim); margin-bottom:5px;}
+  .tbar{width:100%; max-width:42px; background:linear-gradient(180deg,var(--new),rgba(52,211,153,0.35)); border-radius:5px 5px 0 0;}
+  .tnames{display:flex; gap:12px; margin-top:9px;}
+  .tname{flex:1; text-align:center; font-size:11px; color:var(--dim);}
+  .tname b{display:block; color:var(--text); font-weight:600; font-size:11px;}
+
+  /* notes */
+  .note{background:var(--panel-2); border:1px solid var(--border); border-radius:12px; padding:16px 18px; font-size:12.5px; color:var(--dim); line-height:1.6;}
+  .note h4{margin:0 0 10px; font-size:12px; color:var(--text); text-transform:uppercase; letter-spacing:0.05em;}
+  .note .row{display:flex; gap:8px; margin-bottom:8px;}
+  .note .row::before{content:"→"; color:var(--new);}
+  .note code{background:rgba(255,255,255,0.06); padding:1px 6px; border-radius:5px; color:var(--text); font-size:11.5px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <div>
+      <h1>Adquisiciones — nuevo negocio</h1>
+      <div class="sub">Factura 1 · clientes que entran a la base recurrente este mes</div>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <span class="month-tag">Mes: marzo 2026 (cerrado)</span>
+      <span class="pill">Mockup · valores de ejemplo</span>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpis">
+    <div class="card" style="--accent:var(--new)">
+      <div class="label">Nuevos clientes <span class="q" title="Cuentas que pagaron su factura 1 en el mes (clientes que no existían en la base recurrente el mes anterior)">?</span></div>
+      <div class="value">1,247</div>
+      <div class="delta up">▲ 8.3% <span style="color:var(--dim-2)">vs feb</span></div>
+    </div>
+    <div class="card" style="--accent:var(--new)">
+      <div class="label">Nuevo MRR (adquisiciones) <span class="q" title="Suma del valor recurrente de las facturas 1 del mes. Es el MRR que se SUMA a la base por clientes nuevos.">?</span></div>
+      <div class="value">$24.2k</div>
+      <div class="delta up">▲ 12.1% <span style="color:var(--dim-2)">vs feb</span></div>
+    </div>
+    <div class="card" style="--accent:var(--base)">
+      <div class="label">Ticket promedio adquisición <span class="q" title="Nuevo MRR / Nuevos clientes. Cuánto entra en promedio por cada cliente nuevo.">?</span></div>
+      <div class="value">$19.4</div>
+      <div class="delta up">▲ 3.5% <span style="color:var(--dim-2)">vs feb</span></div>
+    </div>
+    <div class="card" style="--accent:var(--exp)">
+      <div class="label">Nuevo vs base recurrente <span class="q" title="Qué porcentaje del MRR de la base equivale a lo que entró nuevo este mes. Mide qué tanto depende el crecimiento de la adquisición.">?</span></div>
+      <div class="value">10.4%</div>
+      <div class="foot">$24.2k nuevo / $232.7k base</div>
+    </div>
+  </div>
+
+  <!-- WATERFALL -->
+  <div class="panel">
+    <div class="ptitle">Puente de MRR — de dónde sale el movimiento del mes</div>
+    <div class="psub">Cómo pasa la recurrencia de febrero a marzo 2026. Verde suma, ámbar/rojo resta. (Proporciones ilustrativas.)</div>
+
+    <div class="wf">
+      <div class="gl" style="bottom:300px"></div>
+      <div class="gl" style="bottom:200px"></div>
+      <div class="gl" style="bottom:100px"></div>
+
+      <div class="wcol">
+        <div class="wval">$232.7k</div>
+        <div class="wbar" style="height:241px; background:var(--base)"></div>
+        <div class="wspace" style="height:0"></div>
+      </div>
+      <div class="wcol">
+        <div class="wval up">+$24.2k</div>
+        <div class="wbar" style="height:25px; background:var(--new)"></div>
+        <div class="wspace" style="height:241px"></div>
+      </div>
+      <div class="wcol">
+        <div class="wval" style="color:var(--exp)">+$6.4k</div>
+        <div class="wbar" style="height:9px; background:var(--exp)"></div>
+        <div class="wspace" style="height:266px"></div>
+      </div>
+      <div class="wcol">
+        <div class="wval" style="color:var(--down)">−$3.1k</div>
+        <div class="wbar" style="height:9px; background:var(--down)"></div>
+        <div class="wspace" style="height:270px"></div>
+      </div>
+      <div class="wcol">
+        <div class="wval dn">−$18.9k</div>
+        <div class="wbar" style="height:20px; background:var(--churn)"></div>
+        <div class="wspace" style="height:250px"></div>
+      </div>
+      <div class="wcol">
+        <div class="wval">$241.3k</div>
+        <div class="wbar" style="height:250px; background:var(--base)"></div>
+        <div class="wspace" style="height:0"></div>
+      </div>
+    </div>
+
+    <div class="wnames">
+      <div class="wname"><b>MRR inicial</b>feb · base</div>
+      <div class="wname"><b>Adquisiciones</b>factura 1</div>
+      <div class="wname"><b>Expansión</b>upgrades</div>
+      <div class="wname"><b>Contracción</b>downgrades</div>
+      <div class="wname"><b>Churn</b>cancelados</div>
+      <div class="wname"><b>MRR final</b>mar · base</div>
+    </div>
+
+    <div class="legend">
+      <span><span class="dot" style="background:var(--base)"></span>Base recurrente (lo que ya tienes)</span>
+      <span><span class="dot" style="background:var(--new)"></span>Adquisiciones (lo nuevo)</span>
+      <span><span class="dot" style="background:var(--exp)"></span>Expansión</span>
+      <span><span class="dot" style="background:var(--down)"></span>Contracción</span>
+      <span><span class="dot" style="background:var(--churn)"></span>Churn</span>
+    </div>
+  </div>
+
+  <!-- BOTTOM -->
+  <div class="grid2">
+    <div class="panel" style="margin-bottom:0">
+      <div class="ptitle">Adquisiciones por mes</div>
+      <div class="psub">Nuevo MRR (barras) · clientes nuevos (debajo)</div>
+      <div class="trend">
+        <div class="tcol"><div class="tval">$17.8k</div><div class="tbar" style="height:82px"></div></div>
+        <div class="tcol"><div class="tval">$18.9k</div><div class="tbar" style="height:87px"></div></div>
+        <div class="tcol"><div class="tval">$16.2k</div><div class="tbar" style="height:75px"></div></div>
+        <div class="tcol"><div class="tval">$20.1k</div><div class="tbar" style="height:93px"></div></div>
+        <div class="tcol"><div class="tval">$22.4k</div><div class="tbar" style="height:103px"></div></div>
+        <div class="tcol"><div class="tval">$24.2k</div><div class="tbar" style="height:112px"></div></div>
+      </div>
+      <div class="tnames">
+        <div class="tname"><b>Oct</b>912</div>
+        <div class="tname"><b>Nov</b>978</div>
+        <div class="tname"><b>Dic</b>843</div>
+        <div class="tname"><b>Ene</b>1,036</div>
+        <div class="tname"><b>Feb</b>1,151</div>
+        <div class="tname"><b>Mar</b>1,247</div>
+      </div>
+    </div>
+
+    <div class="note">
+      <h4>Qué cuenta como adquisición</h4>
+      <div class="row">Es la <code>factura 1</code> de un cliente: su primer pago, cuando entra a la base.</div>
+      <div class="row">El mes siguiente esa misma cuenta deja de ser adquisición y pasa a <code>Recurrencia</code> (factura 2+).</div>
+      <div class="row">No se mezcla con el MRR actual del panel: la base son facturas 2+; adquisiciones es lo que <i>alimenta</i> esa base.</div>
+      <div class="row">Se excluye el mes en curso por estar incompleto, igual que el resto del panel.</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

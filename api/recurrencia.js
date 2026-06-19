@@ -61,25 +61,37 @@ const PROC_FAC = `CASE
 
 const QUERY_MONTHLY = `
 SELECT
-  TO_CHAR(b.fecha_pago, 'YYYY-MM-DD') AS mes,
-  b.pais_agrupado, b.proceso_clasificado, b.tipo_pago, b.tipo_venta, b.tipo_ingreso, b.estado,
-  MAX(b.es_upgrade) AS es_upgrade,
-  ROUND(SUM(b.payment_amount_usd)::numeric, 2) AS payment_amount_usd,
-  ROUND(SUM(b.total_amount_usd)::numeric, 2)   AS total_amount_usd,
-  SUM(CASE WHEN b.open_balance = true THEN 1 ELSE 0 END) AS open_balance,
-  COUNT(DISTINCT b.student_id)                  AS clientes,
-  COUNT(*)                                      AS facturas
+  TO_CHAR(DATE_TRUNC('month', TO_DATE(dm.mes, 'YYYY-MM-DD')), 'YYYY-MM-DD') AS mes,
+  dm.pais_agrupado, dm.proceso_clasificado, dm.tipo_pago, dm.tipo_venta, dm.tipo_ingreso, dm.estado,
+  MAX(dm.es_upgrade) AS es_upgrade,
+  SUM(dm.payment_amount_usd) AS payment_amount_usd,
+  SUM(dm.total_amount_usd)   AS total_amount_usd,
+  SUM(dm.open_balance)       AS open_balance,
+  SUM(dm.clientes)           AS clientes,
+  SUM(dm.facturas)           AS facturas
 FROM (
-  SELECT ${BASE_COLS}, ${PROC_INV} AS proceso_clasificado,
-    ${ES_UPGRADE} AS es_upgrade, 'Invoice' AS tipo_ingreso
-  ${JOINS}
-  WHERE f.invoice_factura = 'invoice' AND ${FILT_COMMON}
-  UNION ALL
-  SELECT ${BASE_COLS}, ${PROC_FAC} AS proceso_clasificado,
-    ${ES_UPGRADE} AS es_upgrade, 'Factura' AS tipo_ingreso
-  ${JOINS}
-  WHERE f.invoice_factura = 'factura' AND o.fecha_cierre < '2024-03-06' AND ${FILT_COMMON}
-) b
+  SELECT
+    TO_CHAR(b.fecha_pago, 'YYYY-MM-DD') AS mes,
+    b.pais_agrupado, b.proceso_clasificado, b.tipo_pago, b.tipo_venta, b.tipo_ingreso, b.estado,
+    MAX(b.es_upgrade) AS es_upgrade,
+    ROUND(SUM(b.payment_amount_usd)::numeric, 2) AS payment_amount_usd,
+    ROUND(SUM(b.total_amount_usd)::numeric, 2)   AS total_amount_usd,
+    SUM(CASE WHEN b.open_balance = true THEN 1 ELSE 0 END) AS open_balance,
+    COUNT(DISTINCT b.student_id)                  AS clientes,
+    COUNT(*)                                      AS facturas
+  FROM (
+    SELECT ${BASE_COLS}, ${PROC_INV} AS proceso_clasificado,
+      ${ES_UPGRADE} AS es_upgrade, 'Invoice' AS tipo_ingreso
+    ${JOINS}
+    WHERE f.invoice_factura = 'invoice' AND ${FILT_COMMON}
+    UNION ALL
+    SELECT ${BASE_COLS}, ${PROC_FAC} AS proceso_clasificado,
+      ${ES_UPGRADE} AS es_upgrade, 'Factura' AS tipo_ingreso
+    ${JOINS}
+    WHERE f.invoice_factura = 'factura' AND o.fecha_cierre < '2024-03-06' AND ${FILT_COMMON}
+  ) b
+  GROUP BY 1,2,3,4,5,6,7
+) dm
 GROUP BY 1,2,3,4,5,6,7
 ORDER BY 1,2,3,4,5,6,7`;
 
@@ -215,11 +227,11 @@ const getRedis = () => {
   return _redis;
 };
 const CACHE_KEY = 'cache:recurrencia';
-const CACHE_TTL = 18000;
+const CACHE_TTL = 604800;
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 's-maxage=14400, stale-while-revalidate=3600');
+  res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
 

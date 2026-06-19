@@ -10,7 +10,7 @@ const gzip = promisify(zlib.gzip);
 const { Client } = require('pg');
 const { Redis } = require('@upstash/redis');
 
-const CACHE_TTL = 18000; // 5 hours
+const CACHE_TTL = 604800; // 5 hours
 
 function getClient() {
   return new Client({
@@ -157,25 +157,37 @@ const ENDPOINTS = [
 
       const QUERY_MONTHLY = `
 SELECT
-  TO_CHAR(b.fecha_pago, 'YYYY-MM-DD') AS mes,
-  b.pais_agrupado, b.proceso_clasificado, b.tipo_pago, b.tipo_venta, b.tipo_ingreso, b.estado,
-  MAX(b.es_upgrade) AS es_upgrade,
-  ROUND(SUM(b.payment_amount_usd)::numeric, 2) AS payment_amount_usd,
-  ROUND(SUM(b.total_amount_usd)::numeric, 2)   AS total_amount_usd,
-  SUM(CASE WHEN b.open_balance = true THEN 1 ELSE 0 END) AS open_balance,
-  COUNT(DISTINCT b.student_id)                  AS clientes,
-  COUNT(*)                                      AS facturas
+  TO_CHAR(DATE_TRUNC('month', TO_DATE(dm.mes, 'YYYY-MM-DD')), 'YYYY-MM-DD') AS mes,
+  dm.pais_agrupado, dm.proceso_clasificado, dm.tipo_pago, dm.tipo_venta, dm.tipo_ingreso, dm.estado,
+  MAX(dm.es_upgrade) AS es_upgrade,
+  SUM(dm.payment_amount_usd) AS payment_amount_usd,
+  SUM(dm.total_amount_usd)   AS total_amount_usd,
+  SUM(dm.open_balance)       AS open_balance,
+  SUM(dm.clientes)           AS clientes,
+  SUM(dm.facturas)           AS facturas
 FROM (
-  SELECT ${BASE_COLS}, ${PROC_INV} AS proceso_clasificado,
-    ${ES_UPGRADE} AS es_upgrade, 'Invoice' AS tipo_ingreso
-  ${JOINS}
-  WHERE f.invoice_factura = 'invoice' AND ${FILT_COMMON}
-  UNION ALL
-  SELECT ${BASE_COLS}, ${PROC_FAC} AS proceso_clasificado,
-    ${ES_UPGRADE} AS es_upgrade, 'Factura' AS tipo_ingreso
-  ${JOINS}
-  WHERE f.invoice_factura = 'factura' AND o.fecha_cierre < '2024-03-06' AND ${FILT_COMMON}
-) b
+  SELECT
+    TO_CHAR(b.fecha_pago, 'YYYY-MM-DD') AS mes,
+    b.pais_agrupado, b.proceso_clasificado, b.tipo_pago, b.tipo_venta, b.tipo_ingreso, b.estado,
+    MAX(b.es_upgrade) AS es_upgrade,
+    ROUND(SUM(b.payment_amount_usd)::numeric, 2) AS payment_amount_usd,
+    ROUND(SUM(b.total_amount_usd)::numeric, 2)   AS total_amount_usd,
+    SUM(CASE WHEN b.open_balance = true THEN 1 ELSE 0 END) AS open_balance,
+    COUNT(DISTINCT b.student_id)                  AS clientes,
+    COUNT(*)                                      AS facturas
+  FROM (
+    SELECT ${BASE_COLS}, ${PROC_INV} AS proceso_clasificado,
+      ${ES_UPGRADE} AS es_upgrade, 'Invoice' AS tipo_ingreso
+    ${JOINS}
+    WHERE f.invoice_factura = 'invoice' AND ${FILT_COMMON}
+    UNION ALL
+    SELECT ${BASE_COLS}, ${PROC_FAC} AS proceso_clasificado,
+      ${ES_UPGRADE} AS es_upgrade, 'Factura' AS tipo_ingreso
+    ${JOINS}
+    WHERE f.invoice_factura = 'factura' AND o.fecha_cierre < '2024-03-06' AND ${FILT_COMMON}
+  ) b
+  GROUP BY 1,2,3,4,5,6,7
+) dm
 GROUP BY 1,2,3,4,5,6,7
 ORDER BY 1,2,3,4,5,6,7`;
 
@@ -748,7 +760,7 @@ detalle AS (
 )`;
       const QUERY = `${DETALLE}
 , funnel AS (
-  SELECT 'funnel' AS tipo, pais, tipo_cliente, tipo_pago,
+  SELECT 'funnel' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago,
     CASE WHEN Up = 1 THEN 'Upgrade' WHEN tipo_cancelacion = 'Cancelación por mora' THEN 'Por mora'
       WHEN tipo_cancelacion = 'Cancelación por chargeback' THEN 'Chargeback'
       WHEN tipo_cancelacion = 'Cancelación voluntaria' THEN 'Voluntaria'
@@ -757,14 +769,14 @@ detalle AS (
   FROM detalle WHERE ultima_invoice_factura = 1 GROUP BY 2,3,4,5
 ),
 cohorte AS (
-  SELECT 'cohorte' AS tipo, pais, tipo_cliente, NULL AS tipo_pago,
+  SELECT 'cohorte' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago,
     TO_CHAR(fecha_cierre, 'YYYY-MM') AS k1, TO_CHAR(due_date, 'YYYY-MM') AS k2, COUNT(*) AS n, NULL AS cash
-  FROM detalle WHERE fecha_cierre IS NOT NULL AND due_date IS NOT NULL GROUP BY 2,3,5,6
+  FROM detalle WHERE fecha_cierre IS NOT NULL AND due_date IS NOT NULL GROUP BY 2,3,4,5,6
 )
 SELECT * FROM funnel WHERE k1 IS NOT NULL UNION ALL SELECT * FROM cohorte`;
       const r = await client.query(QUERY);
       const funnel = r.rows.filter(x => x.tipo === 'funnel').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, razon: x.k1, oportunidades: +x.n, cash_en_riesgo: +x.cash || 0 }));
-      const cohorte = r.rows.filter(x => x.tipo === 'cohorte').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, cohorte: x.k1, mes_vencimiento: x.k2, invoices: +x.n }));
+      const cohorte = r.rows.filter(x => x.tipo === 'cohorte').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.k1, mes_vencimiento: x.k2, invoices: +x.n }));
       return { funnel, cohorte };
     },
   },

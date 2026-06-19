@@ -62,11 +62,11 @@ const getRedis = () => {
   return _redis;
 };
 const CACHE_KEY = 'cache:salud';
-const CACHE_TTL = 18000;
+const CACHE_TTL = 604800;
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 's-maxage=14400, stale-while-revalidate=3600');
+  res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
