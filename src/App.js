@@ -375,6 +375,7 @@ function Semaforo({pct}){
 const NAV_ICONS = {
   'Recurrencia':   <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><rect x="1" y="7" width="3" height="7" rx="1"/><rect x="6" y="4" width="3" height="10" rx="1"/><rect x="11" y="1" width="3" height="13" rx="1"/></svg>,
   'Adquisiciones': <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><circle cx="5.5" cy="5" r="2.5"/><path d="M1 13c0-2.5 2-4 4.5-4 .9 0 1.7.2 2.4.6"/><path d="M11.5 8v4M9.5 10h4"/></svg>,
+  'Facturación':   <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><path d="M3 1.5h6l3 3V13a.5.5 0 0 1-.5.5h-8A.5.5 0 0 1 3 13z"/><path d="M8.5 1.5V4.5h3"/><path d="M5 7.5h5M5 10h3"/></svg>,
   'Upgrades':      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><path d="M2 11L6 7l3 3 4-5"/><path d="M10 6h3v3"/></svg>,
   'Salud':         <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><circle cx="7.5" cy="7.5" r="5.5"/><path d="M7.5 4.5v3l2 1.5"/></svg>,
   'Cancelaciones': <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><path d="M2 4h11M2 7.5h8M2 11h5"/><circle cx="12" cy="11" r="2.5"/><path d="M11 10l1 1 1.5-1.5"/></svg>,
@@ -2905,6 +2906,127 @@ function AdquisicionesSection({metrics}){
   );
 }
 
+function FacturacionTab({data}){
+  const fmt = n => n==null?'—':Number(n).toLocaleString('es-CO',{maximumFractionDigits:0});
+  const fmtUSD = n => n==null?'—':'$'+Number(n).toLocaleString('es-CO',{maximumFractionDigits:0});
+  const mesCorto = m => { try{return new Date(m+'-01T00:00:00').toLocaleDateString('es',{month:'short',year:'2-digit'});}catch{return m;} };
+  const [pais,setPais]=useState('Todos');
+  const [tipoCli,setTipoCli]=useState('Todos');
+  const [tipoPago,setTipoPago]=useState('Todos');
+  const [modo,setModo]=useState('num');
+
+  const funnel=data.funnel||[], cohorte=data.cohorte||[];
+  const paises=['Todos',...[...new Set(funnel.map(r=>r.pais))].filter(Boolean).sort()];
+  const tipos=['Todos',...[...new Set(funnel.map(r=>r.tipo_cliente))].filter(Boolean).sort()];
+  const pagos=['Todos','Contado','Cuotas'];
+
+  const fF=funnel.filter(r=>(pais==='Todos'||r.pais===pais)&&(tipoCli==='Todos'||r.tipo_cliente===tipoCli)&&(tipoPago==='Todos'||r.tipo_pago===tipoPago));
+  const fC=cohorte.filter(r=>(pais==='Todos'||r.pais===pais)&&(tipoCli==='Todos'||r.tipo_cliente===tipoCli));
+
+  const ORDER=['Por mora','En mora sin cancelar','Voluntaria','Upgrade','Chargeback'];
+  const COL={'Por mora':'#ef4444','En mora sin cancelar':'#f97316','Voluntaria':'#f59e0b','Upgrade':'#6366f1','Chargeback':'#8b5cf6'};
+  const agg={}; fF.forEach(r=>{ if(!agg[r.razon])agg[r.razon]={n:0,cash:0}; agg[r.razon].n+=+r.oportunidades; agg[r.razon].cash+=+r.cash_en_riesgo; });
+  const bars=ORDER.filter(k=>agg[k]).map(k=>({razon:k,n:agg[k].n,cash:agg[k].cash,color:COL[k]}));
+  const maxN=Math.max(...bars.map(b=>b.n),1);
+  const total=bars.reduce((s,b)=>s+b.n,0);
+  const mora=(agg['Por mora']?.n||0)+(agg['En mora sin cancelar']?.n||0);
+  const cashMora=(agg['Por mora']?.cash||0)+(agg['En mora sin cancelar']?.cash||0);
+  const upg=agg['Upgrade']?.n||0, enMora=agg['En mora sin cancelar']?.n||0;
+
+  const cohortes=[...new Set(fC.map(r=>r.cohorte))].sort();
+  const showCoh=cohortes.slice(-12);
+  const minCoh=showCoh[0]||'';
+  const cols=[...new Set(fC.map(r=>r.mes_vencimiento))].filter(m=>m>=minCoh).sort();
+  const cell={}; fC.forEach(r=>{ if(!cell[r.cohorte])cell[r.cohorte]={}; cell[r.cohorte][r.mes_vencimiento]=(cell[r.cohorte][r.mes_vencimiento]||0)+ +r.invoices; });
+  const cohColor=(v,m0)=>{ const p=m0>0?v/m0:0; if(p>=0.8)return '#dcfce7'; if(p>=0.6)return '#fef9c3'; if(p>=0.4)return '#fee2e2'; return '#fecaca'; };
+
+  const byTipo={}; fF.forEach(r=>{ if(!byTipo[r.tipo_cliente])byTipo[r.tipo_cliente]={}; byTipo[r.tipo_cliente][r.razon]=(byTipo[r.tipo_cliente][r.razon]||0)+ +r.oportunidades; });
+  const tipoRows=Object.entries(byTipo).map(([k,v])=>({tipo:k,vals:v,total:Object.values(v).reduce((a,b)=>a+b,0)})).sort((a,b)=>b.total-a.total).slice(0,8);
+
+  const sel=(val,set,opts,label)=>(
+    <label style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12,color:'#555'}}>{label}
+      <select value={val} onChange={e=>set(e.target.value)} style={{fontFamily:'inherit',fontSize:12,padding:'5px 8px',border:'0.5px solid #ddd',borderRadius:6,background:'#fff'}}>
+        {opts.map(o=><option key={o} value={o}>{o}</option>)}
+      </select>
+    </label>
+  );
+
+  return(<>
+    <div style={{display:'flex',gap:14,flexWrap:'wrap',marginBottom:16}}>
+      {sel(pais,setPais,paises,'País:')}{sel(tipoCli,setTipoCli,tipos,'Tipo cliente:')}{sel(tipoPago,setTipoPago,pagos,'Tipo pago:')}
+    </div>
+
+    <div className="kpi-grid">
+      <KPICard label="Streams detenidos (fugas)" value={fmt(total)} sub="oportunidades que dejaron de facturar" tooltip="Última invoice de cada oportunidad cuyo stream se detuvo por upgrade, cancelación o mora."/>
+      <KPICard label="Por mora (recuperable)" value={total>0?(mora/total*100).toFixed(1)+'%':'—'} sub={`${fmt(mora)} · ${fmtUSD(cashMora)} en riesgo`} tooltip="Cancelación por mora + en mora sin cancelar. Recuperable con cobranza temprana."/>
+      <KPICard label="Upgrade (esperado)" value={fmt(upg)} sub="cambiaron de plan · no es fuga real"/>
+      <KPICard label="En mora sin cancelar" value={fmt(enMora)} sub="atascadas · accionable hoy"/>
+    </div>
+
+    <section className="chart-section">
+      <SectionTitle>¿Dónde se detiene la generación de invoices? — fugas</SectionTitle>
+      <p style={{margin:'-4px 0 16px',fontSize:12,color:'#9ca3af'}}>Última invoice de cada oportunidad, por razón de detención. El ancho = nº de oportunidades.</p>
+      {bars.map(b=>(
+        <div key={b.razon} style={{display:'flex',alignItems:'center',gap:12,marginBottom:11}}>
+          <span style={{width:178,flexShrink:0,fontSize:12.5,color:'#555'}}>{b.razon}
+            {b.razon==='Upgrade'&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:5,marginLeft:6,background:'#eef2ff',color:'#4f46e5'}}>esperado</span>}
+            {(b.razon==='Por mora'||b.razon==='En mora sin cancelar')&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:5,marginLeft:6,background:'#fee2e2',color:'#b91c1c'}}>recuperable</span>}
+          </span>
+          <span style={{flex:1,background:'#f3f4f6',borderRadius:6,height:24,position:'relative',overflow:'hidden'}}>
+            <span style={{position:'absolute',left:0,top:0,bottom:0,width:Math.max(b.n/maxN*100,3)+'%',background:b.color,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'flex-end',paddingRight:8,color:'#fff',fontSize:11,fontWeight:600}}>{fmt(b.n)}</span>
+          </span>
+          <span style={{width:135,flexShrink:0,fontSize:11,color:'#9ca3af',textAlign:'right'}}>{b.cash>0?fmtUSD(b.cash)+' en riesgo':'—'}</span>
+        </div>
+      ))}
+      <p style={{margin:'12px 0 0',fontSize:11,color:'#9ca3af',lineHeight:1.5}}>El <b>upgrade</b> se muestra para contexto pero no es una fuga (la oportunidad migró a otro plan). El foco accionable es la <b>mora</b>: {fmt(mora)} streams y {fmtUSD(cashMora)} en riesgo.</p>
+    </section>
+
+    <section className="chart-section">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:2,flexWrap:'wrap',gap:8}}>
+        <SectionTitle>Cohorte × mes de vencimiento — invoices creadas</SectionTitle>
+        <div className="gran-selector">
+          <button className={`gran-btn${modo==='num'?' active':''}`} onClick={()=>setModo('num')}>#</button>
+          <button className={`gran-btn${modo==='pct'?' active':''}`} onClick={()=>setModo('pct')}>% vs inicio</button>
+        </div>
+      </div>
+      <p style={{margin:'-2px 0 14px',fontSize:12,color:'#9ca3af'}}>Filas = mes de cierre de la oportunidad · columnas = mes de vencimiento (due_date). Se ve cómo cae la creación de invoices.</p>
+      {showCoh.length===0 ? <div style={{fontSize:13,color:'#9ca3af',padding:'16px 0'}}>Sin datos para el filtro.</div> : (
+      <div style={{overflowX:'auto'}}>
+        <table style={{borderCollapse:'separate',borderSpacing:3,fontSize:11}}>
+          <thead><tr><th></th>{cols.map(c=><th key={c} style={{fontSize:10,color:'#888',fontWeight:600,padding:'3px 5px',whiteSpace:'nowrap'}}>{mesCorto(c)}</th>)}</tr></thead>
+          <tbody>
+            {showCoh.map(co=>{ const m0=(cell[co]||{})[co]||0; return (
+              <tr key={co}>
+                <td style={{color:'#555',fontWeight:600,whiteSpace:'nowrap',paddingRight:8,fontSize:11}}>{mesCorto(co)}</td>
+                {cols.map(c=>{ const v=(cell[co]||{})[c]; if(c<co||v==null)return <td key={c}></td>;
+                  return <td key={c} style={{textAlign:'center',padding:'7px 6px',borderRadius:5,background:cohColor(v,m0),fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap'}}>{modo==='pct'?(m0>0?Math.round(v/m0*100)+'%':'—'):fmt(v)}</td>; })}
+              </tr>
+            );})}
+          </tbody>
+        </table>
+      </div>
+      )}
+    </section>
+
+    <section className="chart-section">
+      <SectionTitle>Fuga por tipo de cliente</SectionTitle>
+      <p style={{margin:'-4px 0 14px',fontSize:12,color:'#9ca3af'}}>Composición de las detenciones por segmento.</p>
+      {tipoRows.map(r=>(
+        <div key={r.tipo} style={{display:'flex',alignItems:'center',gap:10,marginBottom:9}}>
+          <span style={{width:150,fontSize:12,color:'#555',flexShrink:0}}>{r.tipo}</span>
+          <span style={{flex:1,display:'flex',height:20,borderRadius:5,overflow:'hidden',background:'#f3f4f6'}}>
+            {ORDER.filter(k=>r.vals[k]).map(k=><span key={k} title={k+': '+fmt(r.vals[k])} style={{width:(r.vals[k]/r.total*100)+'%',background:COL[k]}}/>)}
+          </span>
+          <span style={{width:70,fontSize:11,color:'#9ca3af',textAlign:'right'}}>{fmt(r.total)}</span>
+        </div>
+      ))}
+      <div style={{display:'flex',gap:16,flexWrap:'wrap',fontSize:11,color:'#555',marginTop:8}}>
+        {ORDER.map(k=><span key={k}><i style={{display:'inline-block',width:10,height:10,borderRadius:3,background:COL[k],marginRight:5,verticalAlign:'middle'}}/>{k}</span>)}
+      </div>
+    </section>
+  </>);
+}
+
 function App({authUser, onLogout}){
   const [raw,setRaw]=useState([]);
   const [clientesList,setClientesList]=useState([]);
@@ -2916,6 +3038,8 @@ function App({authUser, onLogout}){
   const [error,setError]=useState(null);
   const [activeTab,setActiveTab]=useState('Recurrencia');
   const [cancelaciones,setCancelaciones]=useState(null);
+  const [facturacion,setFacturacion]=useState(null);
+  const [facturacionLoading,setFacturacionLoading]=useState(false);
   const [churn,setChurn]=useState(null);
   const [churnLoading,setChurnLoading]=useState(false);
   const [churnError,setChurnError]=useState(null);
@@ -3060,8 +3184,15 @@ function App({authUser, onLogout}){
         setCancelaciones({data:data||[], nuevos:nuevos||[]});
       }).catch(e=>setCancelError(e.message)).finally(()=>setCancelLoading(false));
     }
+    if(activeTab==='Facturación' && !facturacion && !facturacionLoading){
+      setFacturacionLoading(true);
+      fetch('/api/facturacion').then(r=>r.json()).then(({funnel,cohorte,error})=>{
+        if(error)throw new Error(error);
+        setFacturacion({funnel:funnel||[], cohorte:cohorte||[]});
+      }).catch(()=>setFacturacion({funnel:[],cohorte:[]})).finally(()=>setFacturacionLoading(false));
+    }
 
-  },[activeTab,cancelaciones,churn]);
+  },[activeTab,cancelaciones,churn,facturacion,facturacionLoading]);
 
   useEffect(()=>{
     const token=localStorage.getItem('auth_token');
@@ -3482,7 +3613,7 @@ function App({authUser, onLogout}){
                 ? ['Recurrencia','Upgrades','Salud','Cancelaciones','Churn','Usuarios']
                 : (authUser?.pestanas || ['Recurrencia','Upgrades','Salud','Cancelaciones','Churn']);
               // Adquisiciones siempre justo después de Recurrencia (para todos los usuarios)
-              const conAdq = base.flatMap(t => t==='Recurrencia' ? ['Recurrencia','Adquisiciones'] : [t]);
+              const conAdq = base.flatMap(t => t==='Recurrencia' ? ['Recurrencia','Adquisiciones','Facturación'] : [t]);
               if(!conAdq.includes('Adquisiciones')) conAdq.unshift('Adquisiciones');
               return [...conAdq, ...(authUser?.superAdmin ? ['Sincronización'] : [])];
             })()}
@@ -3558,6 +3689,7 @@ function App({authUser, onLogout}){
             <p className="page-sub">
               {activeTab==='Recurrencia'&&<>{fmt(data.length)} facturas recurrentes · Pagos de factura #2 en adelante</>}
               {activeTab==='Adquisiciones'&&<>Nuevo negocio · factura 1 que entra a la base recurrente</>}
+              {activeTab==='Facturación'&&<>Creación de invoices · cohorte (cierre) × vencimiento · por qué no se generan todas</>}
               {activeTab==='Upgrades'&&<>Clientes con cambio de plan o pago anticipado</>}
               {activeTab==='Salud'&&<>Retención, cohortes y LTV · Datos desde 2023</>}
               {activeTab==='Cancelaciones'&&<>Suscripciones canceladas en Zuora</>}
@@ -3785,6 +3917,14 @@ function App({authUser, onLogout}){
         {/* ── TAB: ADQUISICIONES ── */}
         {activeTab==='Adquisiciones'&&(
           <AdquisicionesSection metrics={adquisicionesMetrics}/>
+        )}
+
+        {/* ── TAB: FACTURACIÓN ── */}
+        {activeTab==='Facturación'&&(
+          <>
+            {facturacionLoading&&!facturacion&&<div className="loading-screen"><div className="loading-spinner"/><p>Cargando facturación...</p></div>}
+            {facturacion&&<FacturacionTab data={facturacion}/>}
+          </>
         )}
 
         {/* ── TAB: UPGRADES ── */}

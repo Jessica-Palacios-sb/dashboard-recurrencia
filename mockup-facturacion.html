@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup · Facturación — 3 opciones</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+  :root{
+    --yellow:#FFD700; --dark:#1a1600; --gray-bg:#f2f2f2; --white:#fff;
+    --border:#e0e0e0; --text:#111; --text2:#555; --text3:#888;
+    --radius:10px; --shadow:0 1px 4px rgba(0,0,0,0.06);
+    --green:#22c55e; --green-lt:#dcfce7; --amber:#f59e0b; --amber-lt:#fef3c7;
+    --red:#ef4444; --red-lt:#fee2e2; --blue:#6366f1; --purple:#8b5cf6; --teal:#06b6d4;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',system-ui,sans-serif;background:var(--gray-bg);color:var(--text);}
+
+  /* picker bar */
+  .picker{position:sticky;top:0;z-index:500;background:#111;color:#fff;padding:12px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .picker b{font-size:14px;}
+  .picker span{font-size:12px;color:#bbb;}
+  .picker .opts{display:flex;gap:8px;margin-left:auto;}
+  .picker button{font-family:inherit;font-size:12px;font-weight:600;padding:7px 14px;border-radius:8px;border:1px solid #333;background:#1c1c1c;color:#ddd;cursor:pointer;}
+  .picker button.active{background:var(--yellow);color:#111;border-color:var(--yellow);}
+
+  /* shell that imitates the panel */
+  .shell{display:flex;min-height:calc(100vh - 46px);}
+  .sidebar{width:210px;flex-shrink:0;background:#111;color:#fff;padding:0;}
+  .sb-head{padding:16px 14px;border-bottom:1px solid rgba(255,215,0,0.12);}
+  .sb-logo{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .sb-logo .box{width:34px;height:34px;border-radius:9px;background:var(--yellow);display:flex;align-items:center;justify-content:center;font-size:18px;}
+  .sb-brand{font-size:13px;font-weight:600;}
+  .sb-brand small{display:block;font-size:9px;color:rgba(255,215,0,0.4);}
+  .sb-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .sb-stat{background:rgba(255,215,0,0.07);border:0.5px solid rgba(255,215,0,0.15);border-radius:6px;padding:7px 8px;}
+  .sb-stat .l{font-size:8px;color:rgba(255,215,0,0.45);text-transform:uppercase;letter-spacing:.4px;}
+  .sb-stat .v{font-size:12px;font-weight:600;color:var(--yellow);}
+  .sb-nav{padding:10px 8px;display:flex;flex-direction:column;gap:2px;}
+  .sb-item{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:8px;font-size:12px;color:#fff;}
+  .sb-item.active{background:var(--yellow);color:var(--dark);font-weight:600;}
+  .sb-item .dot{width:14px;height:14px;border-radius:4px;border:1.6px solid currentColor;opacity:.85;}
+  .sb-item.active .dot{border-style:double;}
+
+  .main{flex:1;min-width:0;background:var(--gray-bg);}
+  .topbar{background:#fff;border-bottom:1px solid var(--border);padding:8px 24px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .topbar .lbl{font-size:13px;color:var(--text);font-weight:600;}
+  .chip{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;border:0.5px solid #ddd;background:#fff;font-size:11px;color:var(--text2);}
+  .chip.active{background:var(--yellow);color:var(--dark);border-color:var(--yellow);font-weight:600;}
+  .page-header{padding:20px 24px 0;}
+  .page-title{font-size:20px;font-weight:600;}
+  .page-sub{font-size:12px;color:var(--text3);}
+  .content{padding:20px 24px 50px;}
+
+  /* building blocks (match App.css) */
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:20px;}
+  .kpi{background:#fff;border:0.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;}
+  .kpi .l{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:6px;}
+  .kpi .v{font-size:22px;font-weight:700;}
+  .kpi .s{font-size:11px;color:var(--text3);margin-top:3px;}
+  .section{background:#fff;border:0.5px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px;box-shadow:var(--shadow);}
+  .stitle{font-size:14px;font-weight:600;margin-bottom:2px;}
+  .ssub{font-size:12px;color:var(--text3);margin-bottom:16px;}
+  .row2{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;}
+  @media(max-width:900px){.row2{grid-template-columns:1fr;}}
+
+  /* funnel horizontal bars */
+  .fbar{display:flex;align-items:center;gap:12px;margin-bottom:11px;}
+  .fbar .name{width:165px;flex-shrink:0;font-size:12.5px;color:var(--text2);}
+  .fbar .track{flex:1;background:#f3f4f6;border-radius:6px;height:24px;position:relative;overflow:hidden;}
+  .fbar .fill{height:100%;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;color:#fff;font-size:11px;font-weight:600;}
+  .fbar .cash{width:120px;flex-shrink:0;font-size:11px;color:var(--text3);text-align:right;}
+  .tag{font-size:10px;padding:1px 6px;border-radius:5px;margin-left:6px;}
+  .tag.exp{background:#eef2ff;color:#4f46e5;}
+  .tag.rec{background:var(--red-lt);color:#b91c1c;}
+
+  /* vertical funnel (option B) */
+  .vfunnel{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;}
+  .vstep{border-radius:7px;color:#fff;text-align:center;padding:9px 0;font-size:12px;font-weight:600;position:relative;}
+  .vstep small{display:block;font-weight:400;font-size:10.5px;opacity:.9;}
+
+  /* cohort grid heatmap */
+  table.coh{border-collapse:separate;border-spacing:3px;font-size:11px;width:100%;}
+  table.coh th{font-size:10px;color:var(--text3);font-weight:600;padding:3px 4px;text-align:center;}
+  table.coh td{text-align:center;padding:7px 4px;border-radius:5px;color:#111;font-variant-numeric:tabular-nums;}
+  table.coh td.cohlbl{background:none;color:var(--text2);font-weight:600;text-align:left;padding-left:2px;}
+  .toggle{display:inline-flex;border:1px solid var(--border);border-radius:7px;overflow:hidden;}
+  .toggle button{font-family:inherit;font-size:11px;padding:4px 12px;border:none;background:#fff;color:var(--text2);cursor:pointer;}
+  .toggle button.on{background:var(--yellow);color:#111;font-weight:600;}
+
+  /* stacked bars (fuga por tipo) */
+  .sbar{display:flex;align-items:center;gap:10px;margin-bottom:9px;}
+  .sbar .name{width:120px;font-size:12px;color:var(--text2);flex-shrink:0;}
+  .sbar .stack{flex:1;display:flex;height:20px;border-radius:5px;overflow:hidden;background:#f3f4f6;}
+  .sbar .seg{height:100%;}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--text2);margin-top:6px;}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle;}
+
+  .opt-block{display:none;}
+  .opt-block.show{display:block;}
+  .note{font-size:11px;color:var(--text3);margin-top:10px;line-height:1.5;}
+  h2.opthdr{font-size:13px;font-weight:600;color:#92700a;background:#fffbe0;border:1px solid #ffe04d;border-radius:8px;padding:8px 14px;margin:0 24px 14px;}
+</style>
+</head>
+<body>
+
+<div class="picker">
+  <b>Mockup · Facturación</b>
+  <span>3 opciones de diseño — elige una (o pídeme mezclar). Datos de ejemplo.</span>
+  <div class="opts">
+    <button data-opt="A" class="active" onclick="sel('A')">Opción A · Funnel</button>
+    <button data-opt="B" onclick="sel('B')">Opción B · Embudo</button>
+    <button data-opt="C" onclick="sel('C')">Opción C · Cohorte</button>
+  </div>
+</div>
+
+<div class="shell">
+  <!-- sidebar imitation -->
+  <aside class="sidebar">
+    <div class="sb-head">
+      <div class="sb-logo"><div class="box">🐝</div><div class="sb-brand">Beemo<small>Dashboard</small></div></div>
+      <div class="sb-stats">
+        <div class="sb-stat"><div class="l">MRR 2026-05</div><div class="v">$231.269</div></div>
+        <div class="sb-stat"><div class="l">REC. 2026-06</div><div class="v">$71.947</div></div>
+      </div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sb-item"><span class="dot"></span>Recurrencia</div>
+      <div class="sb-item"><span class="dot"></span>Adquisiciones</div>
+      <div class="sb-item active"><span class="dot"></span>Facturación</div>
+      <div class="sb-item"><span class="dot"></span>Upgrades</div>
+      <div class="sb-item"><span class="dot"></span>Salud</div>
+      <div class="sb-item"><span class="dot"></span>Cancelaciones</div>
+      <div class="sb-item"><span class="dot"></span>Churn</div>
+      <div class="sb-item"><span class="dot"></span>Usuarios</div>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <span class="lbl">Filtros:</span>
+      <span class="chip">País ▾</span>
+      <span class="chip">Tipo de cliente ▾</span>
+      <span class="chip">Tipo de pago ▾</span>
+    </div>
+    <div class="page-header">
+      <div class="page-title">Facturación</div>
+      <div class="page-sub">Creación de invoices · cohorte (cierre) × vencimiento (due_date) · por qué no se generan todas</div>
+    </div>
+
+    <div class="content">
+
+      <!-- ============ OPCIÓN A — FUNNEL PROTAGONISTA ============ -->
+      <div class="opt-block show" id="A">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="l">Streams detenidos (fugas)</div><div class="v" style="color:#ef4444">33.500</div><div class="s">oportunidades que dejaron de facturar</div></div>
+          <div class="kpi"><div class="l">Por mora (recuperable)</div><div class="v" style="color:#f59e0b">63%</div><div class="s">21.200 · cash en riesgo $1.84M</div></div>
+          <div class="kpi"><div class="l">Upgrade (esperado)</div><div class="v" style="color:#6366f1">12.100</div><div class="s">cambiaron de plan</div></div>
+          <div class="kpi"><div class="l">En mora sin cancelar</div><div class="v" style="color:#ef4444">8.700</div><div class="s">atascadas · accionable hoy</div></div>
+        </div>
+
+        <div class="section">
+          <div class="stitle">¿Dónde se detiene la generación de invoices? — fugas</div>
+          <div class="ssub">Última invoice de cada oportunidad, clasificada por la razón de detención. El ancho = nº de oportunidades.</div>
+          <div class="fbar"><span class="name">Cancelación por mora <span class="tag rec">recuperable</span></span><span class="track"><span class="fill" style="width:62%;background:#ef4444">12.500</span></span><span class="cash">$1.21M en riesgo</span></div>
+          <div class="fbar"><span class="name">En mora sin cancelar <span class="tag rec">atascada</span></span><span class="track"><span class="fill" style="width:43%;background:#f97316">8.700</span></span><span class="cash">$0.63M en riesgo</span></div>
+          <div class="fbar"><span class="name">Cancelación voluntaria</span><span class="track"><span class="fill" style="width:41%;background:#f59e0b">8.300</span></span><span class="cash">—</span></div>
+          <div class="fbar"><span class="name">Upgrade <span class="tag exp">esperado</span></span><span class="track"><span class="fill" style="width:60%;background:#6366f1">12.100</span></span><span class="cash">no es fuga real</span></div>
+          <div class="fbar"><span class="name">Chargeback</span><span class="track"><span class="fill" style="width:9%;background:#8b5cf6">1.900</span></span><span class="cash">$0.18M</span></div>
+          <div class="note">El upgrade se muestra para contexto pero no es una fuga (la oportunidad migró a otro plan). El foco accionable es la <b>mora</b> (cancelada + sin cancelar): ~21.200 streams y ~$1.84M en riesgo.</div>
+        </div>
+
+        <div class="section">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+            <div class="stitle">Cohorte × mes de vencimiento — invoices creadas</div>
+            <div class="toggle"><button class="on">#</button><button>% vs M0</button></div>
+          </div>
+          <div class="ssub">Filas = mes de cierre de la oportunidad. Columnas = meses hasta el vencimiento de la invoice. Se ve la caída.</div>
+          <div id="cohA"></div>
+        </div>
+
+        <div class="section">
+          <div class="stitle">Fuga por tipo de cliente</div>
+          <div class="ssub">Composición de las detenciones por segmento.</div>
+          <div id="stackA"></div>
+          <div class="legend">
+            <span><i style="background:#ef4444"></i>Por mora</span>
+            <span><i style="background:#f59e0b"></i>Voluntaria</span>
+            <span><i style="background:#6366f1"></i>Upgrade</span>
+            <span><i style="background:#8b5cf6"></i>Chargeback</span>
+            <span><i style="background:#f97316"></i>En mora s/cancelar</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ OPCIÓN B — EMBUDO VERTICAL ============ -->
+      <div class="opt-block" id="B">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="l">Invoices creadas</div><div class="v">148.230</div><div class="s">acumulado</div></div>
+          <div class="kpi"><div class="l">Streams detenidos</div><div class="v" style="color:#ef4444">33.500</div><div class="s">dejaron de facturar</div></div>
+          <div class="kpi"><div class="l">Por mora</div><div class="v" style="color:#f59e0b">63%</div><div class="s">de las fugas</div></div>
+          <div class="kpi"><div class="l">Cash en riesgo</div><div class="v" style="color:#ef4444">$1.84M</div><div class="s">recuperable con cobranza</div></div>
+        </div>
+
+        <div class="row2">
+          <div class="section">
+            <div class="stitle">Embudo de fugas de facturación</div>
+            <div class="ssub">De los streams que se detienen, dónde se pierde el flujo (cada escalón es más angosto).</div>
+            <div class="vfunnel">
+              <div class="vstep" style="width:100%;background:#1f2937">Streams detenidos · 33.500</div>
+              <div class="vstep" style="width:86%;background:#ef4444">Cancelación por mora · 12.500<small>$1.21M en riesgo</small></div>
+              <div class="vstep" style="width:70%;background:#f97316">En mora sin cancelar · 8.700<small>atascadas · $0.63M</small></div>
+              <div class="vstep" style="width:58%;background:#f59e0b">Cancelación voluntaria · 8.300</div>
+              <div class="vstep" style="width:40%;background:#6366f1">Upgrade (esperado) · 12.100<small>migró de plan</small></div>
+              <div class="vstep" style="width:20%;background:#8b5cf6">Chargeback · 1.900</div>
+            </div>
+            <div class="note">Lectura: ~63% de las fugas son por <b>mora</b> (cancelada + sin cancelar). El upgrade es esperado (no es pérdida real).</div>
+          </div>
+          <div class="section">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div class="stitle">Cohorte × vencimiento</div>
+              <div class="toggle"><button class="on">#</button><button>%</button></div>
+            </div>
+            <div class="ssub">Invoices creadas por mes hasta el due_date.</div>
+            <div id="cohB"></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="stitle">Fuga por país</div>
+          <div class="ssub">Dónde se concentra la pérdida.</div>
+          <div id="stackB"></div>
+          <div class="legend">
+            <span><i style="background:#ef4444"></i>Por mora</span>
+            <span><i style="background:#f59e0b"></i>Voluntaria</span>
+            <span><i style="background:#6366f1"></i>Upgrade</span>
+            <span><i style="background:#8b5cf6"></i>Chargeback</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ OPCIÓN C — COHORTE PROTAGONISTA ============ -->
+      <div class="opt-block" id="C">
+        <div class="section">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+            <div class="stitle">Cohorte × mes de vencimiento — ¿cuántas invoices se siguen creando?</div>
+            <div class="toggle"><button>#</button><button class="on">% vs M0</button></div>
+          </div>
+          <div class="ssub">Cada fila es una cohorte (mes de cierre). El heatmap muestra qué % de la facturación del mes 0 se sigue generando.</div>
+          <div id="cohC"></div>
+          <div class="note">La caída de cada fila = invoices que dejaron de crearse. El panel de abajo explica <b>por qué</b>.</div>
+        </div>
+
+        <div class="row2">
+          <div class="section">
+            <div class="stitle">¿Por qué se detienen? — fugas</div>
+            <div class="ssub">Razón de la última invoice de cada oportunidad.</div>
+            <div class="fbar"><span class="name">Por mora</span><span class="track"><span class="fill" style="width:62%;background:#ef4444">12.500</span></span></div>
+            <div class="fbar"><span class="name">En mora s/cancelar</span><span class="track"><span class="fill" style="width:43%;background:#f97316">8.700</span></span></div>
+            <div class="fbar"><span class="name">Voluntaria</span><span class="track"><span class="fill" style="width:41%;background:#f59e0b">8.300</span></span></div>
+            <div class="fbar"><span class="name">Upgrade</span><span class="track"><span class="fill" style="width:60%;background:#6366f1">12.100</span></span></div>
+            <div class="fbar"><span class="name">Chargeback</span><span class="track"><span class="fill" style="width:9%;background:#8b5cf6">1.900</span></span></div>
+          </div>
+          <div class="section">
+            <div class="stitle">KPIs clave</div>
+            <div class="ssub">Resumen accionable.</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div class="kpi" style="border:none;background:#fafafa"><div class="l">Por mora (recuperable)</div><div class="v" style="color:#f59e0b">21.200</div><div class="s">$1.84M en riesgo</div></div>
+              <div class="kpi" style="border:none;background:#fafafa"><div class="l">En mora sin cancelar</div><div class="v" style="color:#ef4444">8.700</div><div class="s">atascadas hoy</div></div>
+              <div class="kpi" style="border:none;background:#fafafa"><div class="l">Upgrade (esperado)</div><div class="v" style="color:#6366f1">12.100</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+  function sel(o){
+    document.querySelectorAll('.opt-block').forEach(b=>b.classList.toggle('show',b.id===o));
+    document.querySelectorAll('.picker button').forEach(b=>b.classList.toggle('active',b.dataset.opt===o));
+  }
+  // ---- demo data ----
+  const cohorts=['2025-08','2025-09','2025-10','2025-11','2025-12','2026-01'];
+  // invoices created by offset (decaying); index0 = M+0
+  const base=[1020,1150,1080,1130,990,1060];
+  function rowData(b){ const r=[]; let v=b; for(let i=0;i<8;i++){ r.push(Math.round(v)); v=v*(0.86-i*0.012)+ (i>3?0:0);} return r;}
+  function colorPct(p){ if(p>=85)return '#dcfce7'; if(p>=70)return '#fef9c3'; if(p>=55)return '#fee2e2'; return '#fecaca';}
+  function colorNum(n,max){ const p=n/max; if(p>=.8)return '#dcfce7'; if(p>=.6)return '#fef9c3'; if(p>=.4)return '#fee2e2'; return '#fecaca';}
+  function buildCoh(elId, mode){
+    const el=document.getElementById(elId); if(!el)return;
+    let html='<table class="coh"><tr><th></th>';
+    for(let i=0;i<8;i++)html+='<th>M+'+i+'</th>';
+    html+='</tr>';
+    cohorts.forEach((c,ci)=>{
+      const r=rowData(base[ci]); const m0=r[0];
+      html+='<tr><td class="cohlbl">'+c+'</td>';
+      r.forEach((n,i)=>{
+        // simulate fewer cells for recent cohorts
+        if(ci>=4 && i> (7-(ci-3))){ html+='<td></td>'; return; }
+        if(mode==='pct'){ const p=Math.round(n/m0*100); html+='<td style="background:'+colorPct(p)+'">'+p+'%</td>'; }
+        else { html+='<td style="background:'+colorNum(n,m0)+'">'+n.toLocaleString()+'</td>'; }
+      });
+      html+='</tr>';
+    });
+    html+='</table>';
+    el.innerHTML=html;
+  }
+  buildCoh('cohA','num'); buildCoh('cohB','num'); buildCoh('cohC','pct');
+
+  // stacked bars
+  function buildStack(elId, rows){
+    const el=document.getElementById(elId); if(!el)return;
+    const cols=['#ef4444','#f59e0b','#6366f1','#8b5cf6','#f97316'];
+    let html='';
+    rows.forEach(r=>{
+      const tot=r.vals.reduce((a,b)=>a+b,0);
+      html+='<div class="sbar"><span class="name">'+r.name+'</span><span class="stack">';
+      r.vals.forEach((v,i)=>{ html+='<span class="seg" style="width:'+(v/tot*100)+'%;background:'+cols[i]+'"></span>'; });
+      html+='</span></div>';
+    });
+    el.innerHTML=html;
+  }
+  buildStack('stackA',[
+    {name:'BC Cuotas',vals:[5200,2100,3800,700,2400]},
+    {name:'BAU Mensual',vals:[3100,2600,4200,600,1900]},
+    {name:'SC Mensual',vals:[2200,1900,2600,300,1500]},
+    {name:'Mentorías',vals:[1200,900,1500,200,700]},
+  ]);
+  buildStack('stackB',[
+    {name:'Estados Unidos',vals:[4800,3100,4900,900]},
+    {name:'Colombia',vals:[4200,2900,3800,700]},
+    {name:'México',vals:[1800,1200,2100,400]},
+    {name:'Otros',vals:[700,500,800,200]},
+  ]);
+</script>
+</body>
+</html>
