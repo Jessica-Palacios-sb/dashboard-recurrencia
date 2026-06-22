@@ -2977,7 +2977,7 @@ function FacturacionTab({data}){
   const descCell=v=>{ if(v==null)return <span style={{color:'#9ca3af'}}>—</span>; const k=colDesc(v); return <span style={{color:COLG[k],fontWeight:600}}>{k==='green'?'▲':k==='amber'?'▬':'▼'} {(v>=0?'+':'')+pctTxt(v)}</span>; };
   const grupos=[
     {key:'general',name:'General',bg:'#fff',hbg:'#fff',cols:[
-      {h:'Cohorte',align:'left',get:r=>mesCorto(r.cohorte)},
+      {h:'Cohorte',align:'left',sticky:true,get:r=>mesCorto(r.cohorte)},
       {h:'Sales',get:r=>fmt(r.sales)},{h:'Facturas',get:r=>fmt(r.facturas)},{h:'Importe',get:r=>fmtUSD(r.importe)},
       {h:'Ticket',get:r=>fmtUSD(r.ticket)},{h:'Meta a hoy',get:r=>fmtUSD(r.meta)},{h:'Proyección',get:r=>pctTxt(r.proy)},
       {h:'% Pagado',get:r=>dotCell(r.pctPag)},{h:'Pago / Proy.',get:r=>icoCell(r.pvp)},{h:'Total pagado',get:r=>fmtUSD(r.pagado)},
@@ -3079,17 +3079,21 @@ function FacturacionTab({data}){
                 </th>);})}
             </tr>
             <tr>
-              {grupos.flatMap(g=>colsOf(g).map((c,i)=>(
-                <th key={g.key+i} style={{position:'sticky',top:28,zIndex:2,background:g.bg,padding:'7px 10px',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.3px',color:'#888',textAlign:c.align||'right',borderBottom:'1.5px solid #e5e7eb',whiteSpace:'nowrap'}}>{c.h}</th>
-              )))}
+              {grupos.flatMap(g=>colsOf(g).map((c,i)=>{
+                const st={position:'sticky',top:28,zIndex:c.sticky?5:2,background:g.bg,padding:'7px 10px',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.3px',color:'#888',textAlign:c.align||'right',borderBottom:'1.5px solid #e5e7eb',whiteSpace:'nowrap'};
+                if(c.sticky){st.left=0;st.boxShadow='2px 0 5px -2px rgba(0,0,0,0.15)';}
+                return <th key={g.key+i} style={st}>{c.h}</th>;
+              }))}
             </tr>
           </thead>
           <tbody>
             {resRows.map(r=>(
               <tr key={r.cohorte}>
-                {grupos.flatMap(g=>colsOf(g).map((c,i)=>(
-                  <td key={g.key+i} style={{padding:'7px 10px',textAlign:c.align||'right',fontVariantNumeric:'tabular-nums',background:g.bg,whiteSpace:'nowrap',fontWeight:c.align==='left'?600:400,color:c.align==='left'?'#111':'#374151',borderBottom:'1px solid #f3f4f6'}}>{c.get(r)}</td>
-                )))}
+                {grupos.flatMap(g=>colsOf(g).map((c,i)=>{
+                  const st={padding:'7px 10px',textAlign:c.align||'right',fontVariantNumeric:'tabular-nums',background:g.bg,whiteSpace:'nowrap',fontWeight:c.align==='left'?600:400,color:c.align==='left'?'#111':'#374151',borderBottom:'1px solid #f3f4f6'};
+                  if(c.sticky){st.position='sticky';st.left=0;st.zIndex=1;st.boxShadow='2px 0 5px -2px rgba(0,0,0,0.15)';}
+                  return <td key={g.key+i} style={st}>{c.get(r)}</td>;
+                }))}
               </tr>
             ))}
           </tbody>
