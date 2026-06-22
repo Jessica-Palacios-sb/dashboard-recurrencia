@@ -791,7 +791,9 @@ SELECT pais, tipo_cliente,
            WHEN ultima_invoice_factura = 1 THEN COALESCE(payment_amount_usd,0) + COALESCE(cash_up,0) ELSE 0 END)::numeric, 2) AS importe,
   ROUND(SUM(CASE WHEN ultima_invoice_factura = 1 AND tipo_pago = 'Cuotas' AND nc > 0
            THEN (importe / nc) * LEAST(DATEDIFF('month', fecha_cierre, GETDATE()) + 1, nc) ELSE 0 END)::numeric, 2) AS meta_hoy,
-  ROUND(SUM(COALESCE(payment_amount_usd,0) + COALESCE(cash_up,0))::numeric, 2) AS total_pagado
+  ROUND(SUM(COALESCE(payment_amount_usd,0) + COALESCE(cash_up,0))::numeric, 2) AS total_pagado,
+  ROUND(SUM(CASE WHEN Up = 1 THEN COALESCE(cash_sin_pagar,0) ELSE 0 END)::numeric, 2) AS importe_up,
+  ROUND(SUM(COALESCE(cash_up,0))::numeric, 2) AS cash_up
 FROM detalle
 WHERE fecha_cierre IS NOT NULL
 GROUP BY 1,2,3,4`;
@@ -799,7 +801,7 @@ GROUP BY 1,2,3,4`;
       const rr = await client.query(QUERY_RESUMEN);
       const funnel = r.rows.filter(x => x.tipo === 'funnel').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, razon: x.k1, oportunidades: +x.n, cash_en_riesgo: +x.cash || 0 }));
       const cohorte = r.rows.filter(x => x.tipo === 'cohorte').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.k1, mes_vencimiento: x.k2, invoices: +x.n }));
-      const resumen = rr.rows.map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.cohorte, sales: +x.sales, facturas: +x.facturas, importe: +x.importe, meta_hoy: +x.meta_hoy, total_pagado: +x.total_pagado }));
+      const resumen = rr.rows.map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.cohorte, sales: +x.sales, facturas: +x.facturas, importe: +x.importe, meta_hoy: +x.meta_hoy, total_pagado: +x.total_pagado, importe_up: +x.importe_up, cash_up: +x.cash_up }));
       return { funnel, cohorte, resumen };
     },
   },

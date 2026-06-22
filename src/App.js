@@ -2948,15 +2948,17 @@ function FacturacionTab({data}){
   // Resumen por cohorte (mes de cierre): sales, facturas, importe, ticket, meta a hoy, proyección, total pagado
   const resAgg={};
   (data.resumen||[]).filter(matchFiltros).forEach(r=>{
-    if(!resAgg[r.cohorte])resAgg[r.cohorte]={sales:0,facturas:0,importe:0,meta:0,pagado:0};
-    const a=resAgg[r.cohorte]; a.sales+=+r.sales; a.facturas+=+r.facturas; a.importe+=+r.importe; a.meta+=+r.meta_hoy; a.pagado+=+r.total_pagado;
+    if(!resAgg[r.cohorte])resAgg[r.cohorte]={sales:0,facturas:0,importe:0,meta:0,pagado:0,impUp:0,cashUp:0};
+    const a=resAgg[r.cohorte]; a.sales+=+r.sales; a.facturas+=+r.facturas; a.importe+=+r.importe; a.meta+=+r.meta_hoy; a.pagado+=+r.total_pagado; a.impUp+=+r.importe_up; a.cashUp+=+r.cash_up;
   });
-  const resRows=Object.keys(resAgg).sort().map(c=>{const a=resAgg[c];return {cohorte:c,sales:a.sales,facturas:a.facturas,importe:a.importe,ticket:a.facturas>0?a.importe/a.facturas:0,meta:a.meta,proy:a.importe>0?a.meta/a.importe:0,pagado:a.pagado,pctPag:a.importe>0?a.pagado/a.importe:0,pvp:a.meta>0?a.pagado/a.meta-1:null};});
+  const resRows=Object.keys(resAgg).sort().map(c=>{const a=resAgg[c];return {cohorte:c,sales:a.sales,facturas:a.facturas,importe:a.importe,ticket:a.facturas>0?a.importe/a.facturas:0,meta:a.meta,proy:a.importe>0?a.meta/a.importe:0,pagado:a.pagado,pctPag:a.importe>0?a.pagado/a.importe:0,pvp:a.meta>0?a.pagado/a.meta-1:null,impUp:a.impUp,cashUp:a.cashUp,pctAdel:a.impUp!==0?a.cashUp/a.impUp-1:null,descUp:a.cashUp-a.impUp};});
   const COLG={green:'#16a34a',amber:'#d97706',red:'#dc2626'};
   const colPag=p=>p>=0.65?'green':p>=0.45?'amber':'red';
   const colPvp=v=>v>=0.03?'green':v>=-0.03?'amber':'red';
   const thR={padding:'8px 10px',textAlign:'right',position:'sticky',top:0,background:'#fff',borderBottom:'1.5px solid #e5e7eb',zIndex:1};
   const thL={...thR,textAlign:'left'};
+  const thG={...thR,background:'#eef0f3'};
+  const tdG={padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums',background:'#f7f8fa'};
 
   const sel=(val,set,opts,label)=>(
     <label style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12,color:'#555'}}>{label}
@@ -3041,6 +3043,10 @@ function FacturacionTab({data}){
               <th style={thR}>% Pagado</th>
               <th style={thR}>Pago / Proy.</th>
               <th style={thR}>Total pagado</th>
+              <th style={thG} title="Upselling">Importe Up</th>
+              <th style={thG}>Cash Up</th>
+              <th style={thG}>% Pago adelanto</th>
+              <th style={thG}>Monto desc. Up</th>
             </tr>
           </thead>
           <tbody>
@@ -3056,6 +3062,10 @@ function FacturacionTab({data}){
                 <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}><span style={{color:COLG[colPag(r.pctPag)],fontWeight:600}}>● {(r.pctPag*100).toFixed(1)}%</span></td>
                 <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{r.pvp==null?<span style={{color:'#9ca3af'}}>—</span>:<span style={{color:COLG[colPvp(r.pvp)],fontWeight:600}}>{colPvp(r.pvp)==='green'?'▲':colPvp(r.pvp)==='amber'?'▬':'▼'} {(r.pvp>=0?'+':'')+(r.pvp*100).toFixed(1)}%</span>}</td>
                 <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtUSD(r.pagado)}</td>
+                <td style={tdG}>{fmtUSD(r.impUp)}</td>
+                <td style={tdG}>{fmtUSD(r.cashUp)}</td>
+                <td style={tdG}>{r.pctAdel==null?<span style={{color:'#9ca3af'}}>—</span>:<span style={{color:COLG[colPvp(r.pctAdel)],fontWeight:600}}>{colPvp(r.pctAdel)==='green'?'▲':colPvp(r.pctAdel)==='amber'?'▬':'▼'} {(r.pctAdel>=0?'+':'')+(r.pctAdel*100).toFixed(1)}%</span>}</td>
+                <td style={tdG}>{fmtUSD(r.descUp)}</td>
               </tr>
             ))}
           </tbody>
