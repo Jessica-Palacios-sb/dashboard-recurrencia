@@ -2916,13 +2916,18 @@ function FacturacionTab({data}){
   const [tipoPago,setTipoPago]=useState('Todos');
   const [modo,setModo]=useState('num');
   const [colap,setColap]=useState({up:false,canc:false,rec:false});
+  const [selCohorte,setSelCohorte]=useState(null);
+  const [expRows,setExpRows]=useState({});
+  const togglePais=v=>setPais(p=>p===v?'Todos':v);
+  const toggleTipoCli=v=>setTipoCli(p=>p===v?'Todos':v);
+  const toggleCohorte=v=>setSelCohorte(p=>p===v?null:v);
 
   const funnel=data.funnel||[], cohorte=data.cohorte||[];
   const paises=['Todos',...[...new Set(funnel.map(r=>r.pais))].filter(Boolean).sort()];
   const tipos=['Todos',...[...new Set(funnel.map(r=>r.tipo_cliente))].filter(Boolean).sort()];
   const pagos=['Todos','Recurrencia','Cuotas'];
 
-  const matchFiltros=r=>(pais==='Todos'||r.pais===pais)&&(tipoCli==='Todos'||r.tipo_cliente===tipoCli)&&(tipoPago==='Todos'||r.tipo_pago===tipoPago);
+  const matchFiltros=r=>(pais==='Todos'||r.pais===pais)&&(tipoCli==='Todos'||r.tipo_cliente===tipoCli)&&(tipoPago==='Todos'||r.tipo_pago===tipoPago)&&(!selCohorte||r.cohorte===selCohorte);
   const fF=funnel.filter(matchFiltros);
   const fC=cohorte.filter(matchFiltros);
 
@@ -2946,26 +2951,19 @@ function FacturacionTab({data}){
   const byTipo={}; fF.forEach(r=>{ if(!byTipo[r.tipo_cliente])byTipo[r.tipo_cliente]={}; byTipo[r.tipo_cliente][r.razon]=(byTipo[r.tipo_cliente][r.razon]||0)+ +r.oportunidades; });
   const tipoRows=Object.entries(byTipo).map(([k,v])=>({tipo:k,vals:v,total:Object.values(v).reduce((a,b)=>a+b,0)})).sort((a,b)=>b.total-a.total).slice(0,8);
 
-  // Resumen por cohorte (mes de cierre) — secciones General + Up + Cancelaciones + Recurrencia + Total
-  const resAgg={};
+  // Resumen por cohorte (+ desglose por país) — General + Up + Cancelaciones + Recurrencia + Total
+  const resBlank=()=>({sales:0,facturas:0,importe:0,meta:0,pagado:0,impUp:0,cashUp:0,cashF1:0,impCanc:0,sumPay:0,mora:0,impRecPago:0});
+  const resAdd=(a,r)=>{ a.sales+=(+r.sales||0); a.facturas+=(+r.facturas||0); a.importe+=(+r.importe||0); a.meta+=(+r.meta_hoy||0); a.pagado+=(+r.total_pagado||0); a.impUp+=(+r.importe_up||0); a.cashUp+=(+r.cash_up||0); a.cashF1+=(+r.cash_factura1||0); a.impCanc+=(+r.importe_cancel||0); a.sumPay+=(+r.sum_payment||0); a.mora+=(+r.importe_mora||0); a.impRecPago+=(+r.importe_rec_pago||0); };
+  const resDerive=a=>{ const imp=a.importe; const descUp=a.cashUp-a.impUp, pDescUp=imp?descUp/imp:0; const pDescCanc=imp?-(a.impCanc/imp):0; const impRec=imp-a.impUp-a.impCanc-a.cashF1, cashRec=a.sumPay-a.cashF1, descRec=cashRec-a.impRecPago, pDescRec=imp?descRec/imp:0; return {sales:a.sales,facturas:a.facturas,importe:imp,ticket:a.facturas>0?imp/a.facturas:0,meta:a.meta,proy:imp?a.meta/imp:0,pctPag:imp?a.pagado/imp:0,pvp:a.meta>0?a.pagado/a.meta-1:null,pagado:a.pagado,impUp:a.impUp,cashUp:a.cashUp,pctAdel:a.impUp!==0?a.cashUp/a.impUp-1:null,descUp,pDescUp,impCanc:a.impCanc,pDescCanc,impRec,cashRec,pPagoRec:impRec!==0?cashRec/impRec-1:null,descRec,pDescRec,mora:a.mora,pDescTotal:pDescUp+pDescRec+pDescCanc}; };
+  const byCoh={}, byCohPais={};
   (data.resumen||[]).filter(matchFiltros).forEach(r=>{
-    if(!resAgg[r.cohorte])resAgg[r.cohorte]={sales:0,facturas:0,importe:0,meta:0,pagado:0,impUp:0,cashUp:0,cashF1:0,impCanc:0,sumPay:0,mora:0,impRecPago:0};
-    const a=resAgg[r.cohorte];
-    a.sales+=(+r.sales||0); a.facturas+=(+r.facturas||0); a.importe+=(+r.importe||0); a.meta+=(+r.meta_hoy||0); a.pagado+=(+r.total_pagado||0);
-    a.impUp+=(+r.importe_up||0); a.cashUp+=(+r.cash_up||0); a.cashF1+=(+r.cash_factura1||0); a.impCanc+=(+r.importe_cancel||0);
-    a.sumPay+=(+r.sum_payment||0); a.mora+=(+r.importe_mora||0); a.impRecPago+=(+r.importe_rec_pago||0);
+    if(!byCoh[r.cohorte])byCoh[r.cohorte]=resBlank(); resAdd(byCoh[r.cohorte],r);
+    const kp=r.cohorte+'|'+r.pais; if(!byCohPais[kp])byCohPais[kp]=resBlank(); resAdd(byCohPais[kp],r);
   });
-  const resRows=Object.keys(resAgg).sort().map(c=>{
-    const a=resAgg[c], imp=a.importe;
-    const descUp=a.cashUp-a.impUp, pDescUp=imp?descUp/imp:0;
-    const pDescCanc=imp?-(a.impCanc/imp):0;
-    const impRec=imp-a.impUp-a.impCanc-a.cashF1, cashRec=a.sumPay-a.cashF1, descRec=cashRec-a.impRecPago, pDescRec=imp?descRec/imp:0;
-    return {cohorte:c,sales:a.sales,facturas:a.facturas,importe:imp,ticket:a.facturas>0?imp/a.facturas:0,meta:a.meta,proy:imp?a.meta/imp:0,pctPag:imp?a.pagado/imp:0,pvp:a.meta>0?a.pagado/a.meta-1:null,pagado:a.pagado,
-      impUp:a.impUp,cashUp:a.cashUp,pctAdel:a.impUp!==0?a.cashUp/a.impUp-1:null,descUp,pDescUp,
-      impCanc:a.impCanc,pDescCanc,
-      impRec,cashRec,pPagoRec:impRec!==0?cashRec/impRec-1:null,descRec,pDescRec,mora:a.mora,
-      pDescTotal:pDescUp+pDescRec+pDescCanc};
-  });
+  const PAIS_ORDER=['México','Colombia','Estados Unidos','Otros'];
+  const resRows=Object.keys(byCoh).sort().map(c=>({cohorte:c,...resDerive(byCoh[c])}));
+  const subRowsOf=coh=>Object.keys(byCohPais).filter(k=>k.startsWith(coh+'|')).map(k=>({cohorte:coh,pais:k.split('|')[1],_sub:true,...resDerive(byCohPais[k])})).sort((a,b)=>{const ia=PAIS_ORDER.indexOf(a.pais),ib=PAIS_ORDER.indexOf(b.pais);return (ia<0?99:ia)-(ib<0?99:ib);});
+  const renderRows=[]; resRows.forEach(r=>{ renderRows.push(r); if(expRows[r.cohorte]) subRowsOf(r.cohorte).forEach(s=>renderRows.push(s)); });
   const COLG={green:'#16a34a',amber:'#d97706',red:'#dc2626'};
   const colPag=p=>p>=0.65?'green':p>=0.45?'amber':'red';
   const colPvp=v=>v>=0.03?'green':v>=-0.03?'amber':'red';
@@ -2977,7 +2975,9 @@ function FacturacionTab({data}){
   const descCell=v=>{ if(v==null)return <span style={{color:'#9ca3af'}}>—</span>; const k=colDesc(v); return <span style={{color:COLG[k],fontWeight:600}}>{k==='green'?'▲':k==='amber'?'▬':'▼'} {(v>=0?'+':'')+pctTxt(v)}</span>; };
   const grupos=[
     {key:'general',name:'General',bg:'#fff',hbg:'#fff',cols:[
-      {h:'Cohorte',align:'left',sticky:true,get:r=>mesCorto(r.cohorte)},
+      {h:'Cohorte',align:'left',sticky:true,get:r=> r._sub
+        ? <span onClick={()=>togglePais(r.pais)} style={{paddingLeft:20,color:pais===r.pais?'#111':'#6b7280',cursor:'pointer',fontWeight:pais===r.pais?700:400}} title="Filtrar por país">{r.pais}</span>
+        : <span style={{display:'inline-flex',alignItems:'center',gap:5}}><span onClick={e=>{e.stopPropagation();setExpRows(p=>({...p,[r.cohorte]:!p[r.cohorte]}));}} style={{cursor:'pointer',color:'#9ca3af',width:10,fontSize:11}}>{expRows[r.cohorte]?'▾':'▸'}</span><span onClick={()=>toggleCohorte(r.cohorte)} style={{cursor:'pointer',color:selCohorte===r.cohorte?'#a07000':'#111',textDecoration:selCohorte===r.cohorte?'underline':'none'}} title="Filtrar por cohorte">{mesCorto(r.cohorte)}</span></span>},
       {h:'Sales',get:r=>fmt(r.sales)},{h:'Facturas',get:r=>fmt(r.facturas)},{h:'Importe',get:r=>fmtUSD(r.importe)},
       {h:'Ticket',get:r=>fmtUSD(r.ticket)},{h:'Meta a hoy',get:r=>fmtUSD(r.meta)},{h:'Proyección',get:r=>pctTxt(r.proy)},
       {h:'% Pagado',get:r=>dotCell(r.pctPag)},{h:'Pago / Proy.',get:r=>icoCell(r.pvp)},{h:'Total pagado',get:r=>fmtUSD(r.pagado)},
@@ -3007,10 +3007,24 @@ function FacturacionTab({data}){
     </label>
   );
 
+  const chip=(label,onClear)=><span style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:11.5,fontWeight:600,padding:'4px 10px',borderRadius:20,background:'#fffbe6',border:'1px solid #ffe9a8',color:'#92700a'}}>{label}<span onClick={onClear} style={{cursor:'pointer',color:'#b45454',fontWeight:700}}>✕</span></span>;
+  const hayFiltros = pais!=='Todos'||tipoCli!=='Todos'||tipoPago!=='Todos'||selCohorte;
+
   return(<>
-    <div style={{display:'flex',gap:14,flexWrap:'wrap',marginBottom:16}}>
+    <div style={{display:'flex',gap:14,flexWrap:'wrap',marginBottom:hayFiltros?10:16,alignItems:'center'}}>
       {sel(pais,setPais,paises,'País:')}{sel(tipoCli,setTipoCli,tipos,'Tipo cliente:')}{sel(tipoPago,setTipoPago,pagos,'Tipo pago:')}
+      <span style={{fontSize:11,color:'#9ca3af'}}>· clic en cohortes, países o barras para filtrar la hoja</span>
     </div>
+    {hayFiltros&&(
+    <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:16,alignItems:'center'}}>
+      <span style={{fontSize:11,color:'#9ca3af',fontWeight:600}}>Filtros activos:</span>
+      {pais!=='Todos'&&chip('País: '+pais,()=>setPais('Todos'))}
+      {tipoCli!=='Todos'&&chip('Cliente: '+tipoCli,()=>setTipoCli('Todos'))}
+      {tipoPago!=='Todos'&&chip('Pago: '+tipoPago,()=>setTipoPago('Todos'))}
+      {selCohorte&&chip('Cohorte: '+mesCorto(selCohorte),()=>setSelCohorte(null))}
+      <span onClick={()=>{setPais('Todos');setTipoCli('Todos');setTipoPago('Todos');setSelCohorte(null);}} style={{fontSize:11,color:'#6366f1',cursor:'pointer',marginLeft:4}}>Limpiar todo</span>
+    </div>
+    )}
 
     <div className="kpi-grid">
       <KPICard label="Streams detenidos (fugas)" value={fmt(total)} sub="oportunidades que dejaron de facturar" tooltip="Última invoice de cada oportunidad cuyo stream se detuvo por upgrade, cancelación o mora."/>
@@ -3053,7 +3067,7 @@ function FacturacionTab({data}){
           <tbody>
             {showCoh.map(co=>{ const m0=(cell[co]||{})[co]||0; return (
               <tr key={co}>
-                <td style={{color:'#555',fontWeight:600,whiteSpace:'nowrap',paddingRight:8,fontSize:11}}>{mesCorto(co)}</td>
+                <td onClick={()=>toggleCohorte(co)} title="Filtrar la hoja por esta cohorte" style={{color:selCohorte===co?'#a07000':'#555',fontWeight:600,whiteSpace:'nowrap',paddingRight:8,fontSize:11,cursor:'pointer',textDecoration:selCohorte===co?'underline':'none'}}>{mesCorto(co)}</td>
                 {cols.map(c=>{ const v=(cell[co]||{})[c]; if(c<co||v==null)return <td key={c}></td>;
                   return <td key={c} style={{textAlign:'center',padding:'7px 6px',borderRadius:5,background:cohColor(v,m0),fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap'}}>{modo==='pct'?(m0>0?Math.round(v/m0*100)+'%':'—'):fmt(v)}</td>; })}
               </tr>
@@ -3087,11 +3101,11 @@ function FacturacionTab({data}){
             </tr>
           </thead>
           <tbody>
-            {resRows.map(r=>(
-              <tr key={r.cohorte}>
+            {renderRows.map(r=>(
+              <tr key={r._sub?r.cohorte+'|'+r.pais:r.cohorte}>
                 {grupos.flatMap(g=>colsOf(g).map((c,i)=>{
-                  const st={padding:'7px 10px',textAlign:c.align||'right',fontVariantNumeric:'tabular-nums',background:g.bg,whiteSpace:'nowrap',fontWeight:c.align==='left'?600:400,color:c.align==='left'?'#111':'#374151',borderBottom:'1px solid #f3f4f6'};
-                  if(c.sticky){st.position='sticky';st.left=0;st.zIndex=1;st.boxShadow='2px 0 5px -2px rgba(0,0,0,0.15)';}
+                  const st={padding:r._sub?'5px 10px':'7px 10px',textAlign:c.align||'right',fontVariantNumeric:'tabular-nums',background:g.bg,whiteSpace:'nowrap',fontWeight:c.align==='left'?600:400,color:c.align==='left'?'#111':'#374151',borderBottom:'1px solid #f3f4f6',fontSize:r._sub?11:12};
+                  if(c.sticky){st.position='sticky';st.left=0;st.zIndex=1;st.boxShadow='2px 0 5px -2px rgba(0,0,0,0.15)';if(r._sub)st.borderLeft='3px solid #e5e7eb';}
                   return <td key={g.key+i} style={st}>{c.get(r)}</td>;
                 }))}
               </tr>
@@ -3105,15 +3119,15 @@ function FacturacionTab({data}){
     <section className="chart-section">
       <SectionTitle>Fuga por tipo de cliente</SectionTitle>
       <p style={{margin:'-4px 0 14px',fontSize:12,color:'#9ca3af'}}>Composición de las detenciones por segmento.</p>
-      {tipoRows.map(r=>(
-        <div key={r.tipo} style={{display:'flex',alignItems:'center',gap:10,marginBottom:9}}>
-          <span style={{width:150,fontSize:12,color:'#555',flexShrink:0}}>{r.tipo}</span>
+      {tipoRows.map(r=>{const act=tipoCli===r.tipo;return(
+        <div key={r.tipo} onClick={()=>toggleTipoCli(r.tipo)} title="Filtrar la hoja por este tipo de cliente" style={{display:'flex',alignItems:'center',gap:10,marginBottom:7,cursor:'pointer',padding:'3px 6px',marginLeft:-6,marginRight:-6,borderRadius:6,background:act?'#fffbe6':'transparent'}}>
+          <span style={{width:150,fontSize:12,color:act?'#111':'#555',fontWeight:act?700:400,flexShrink:0}}>{r.tipo}</span>
           <span style={{flex:1,display:'flex',height:20,borderRadius:5,overflow:'hidden',background:'#f3f4f6'}}>
             {ORDER.filter(k=>r.vals[k]).map(k=><span key={k} title={k+': '+fmt(r.vals[k])} style={{width:(r.vals[k]/r.total*100)+'%',background:COL[k]}}/>)}
           </span>
           <span style={{width:70,fontSize:11,color:'#9ca3af',textAlign:'right'}}>{fmt(r.total)}</span>
         </div>
-      ))}
+      );})}
       <div style={{display:'flex',gap:16,flexWrap:'wrap',fontSize:11,color:'#555',marginTop:8}}>
         {ORDER.map(k=><span key={k}><i style={{display:'inline-block',width:10,height:10,borderRadius:3,background:COL[k],marginRight:5,verticalAlign:'middle'}}/>{k}</span>)}
       </div>
