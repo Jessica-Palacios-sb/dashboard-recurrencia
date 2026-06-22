@@ -2972,6 +2972,9 @@ function FacturacionTab({data}){
   const pctTxt=v=>(v*100).toFixed(1)+'%';
   const dotCell=v=>v==null?<span style={{color:'#9ca3af'}}>—</span>:<span style={{color:COLG[colPag(v)],fontWeight:600}}>● {pctTxt(v)}</span>;
   const icoCell=v=>{ if(v==null)return <span style={{color:'#9ca3af'}}>—</span>; const k=colPvp(v); return <span style={{color:COLG[k],fontWeight:600}}>{k==='green'?'▲':k==='amber'?'▬':'▼'} {(v>=0?'+':'')+pctTxt(v)}</span>; };
+  // Semaforo de % descuento: mas descuento (mas negativo) = peor = mas rojo.
+  const colDesc=v=>v>=-0.05?'green':v>=-0.15?'amber':'red';
+  const descCell=v=>{ if(v==null)return <span style={{color:'#9ca3af'}}>—</span>; const k=colDesc(v); return <span style={{color:COLG[k],fontWeight:600}}>{k==='green'?'▲':k==='amber'?'▬':'▼'} {(v>=0?'+':'')+pctTxt(v)}</span>; };
   const grupos=[
     {key:'general',name:'General',bg:'#fff',hbg:'#fff',cols:[
       {h:'Cohorte',align:'left',get:r=>mesCorto(r.cohorte)},
@@ -2979,19 +2982,19 @@ function FacturacionTab({data}){
       {h:'Ticket',get:r=>fmtUSD(r.ticket)},{h:'Meta a hoy',get:r=>fmtUSD(r.meta)},{h:'Proyección',get:r=>pctTxt(r.proy)},
       {h:'% Pagado',get:r=>dotCell(r.pctPag)},{h:'Pago / Proy.',get:r=>icoCell(r.pvp)},{h:'Total pagado',get:r=>fmtUSD(r.pagado)},
     ]},
-    {key:'up',name:'Up',bg:'#f7f8fa',hbg:'#eef0f3',summary:{h:'% Desc. Up',get:r=>icoCell(r.pDescUp)},cols:[
+    {key:'up',name:'Up',bg:'#f7f8fa',hbg:'#eef0f3',summary:{h:'% Desc. Up',get:r=>descCell(r.pDescUp)},cols:[
       {h:'Importe Up',get:r=>fmtUSD(r.impUp)},{h:'Cash Up',get:r=>fmtUSD(r.cashUp)},{h:'% Pago adel.',get:r=>icoCell(r.pctAdel)},
-      {h:'Monto desc. Up',get:r=>fmtUSD(r.descUp)},{h:'% Desc. Up',get:r=>icoCell(r.pDescUp)},
+      {h:'Monto desc. Up',get:r=>fmtUSD(r.descUp)},{h:'% Desc. Up',get:r=>descCell(r.pDescUp)},
     ]},
-    {key:'canc',name:'Cancelaciones',bg:'#EFE5E5',hbg:'#e6d4d4',summary:{h:'% Desc. Canc.',get:r=>icoCell(r.pDescCanc)},cols:[
-      {h:'Importe cancel.',get:r=>fmtUSD(r.impCanc)},{h:'% Desc. Canc.',get:r=>icoCell(r.pDescCanc)},
+    {key:'canc',name:'Cancelaciones',bg:'#EFE5E5',hbg:'#e6d4d4',summary:{h:'% Desc. Canc.',get:r=>descCell(r.pDescCanc)},cols:[
+      {h:'Importe cancel.',get:r=>fmtUSD(r.impCanc)},{h:'% Desc. Canc.',get:r=>descCell(r.pDescCanc)},
     ]},
-    {key:'rec',name:'Recurrencia',bg:'#fff',hbg:'#fff',summary:{h:'% Desc. Rec.',get:r=>icoCell(r.pDescRec)},cols:[
+    {key:'rec',name:'Recurrencia',bg:'#fff',hbg:'#fff',summary:{h:'% Desc. Rec.',get:r=>descCell(r.pDescRec)},cols:[
       {h:'Importe Rec.',get:r=>fmtUSD(r.impRec)},{h:'Cash Rec.',get:r=>fmtUSD(r.cashRec)},{h:'% Pago Rec.',get:r=>icoCell(r.pPagoRec)},
-      {h:'Desc. Rec.',get:r=>fmtUSD(r.descRec)},{h:'% Desc. Rec.',get:r=>icoCell(r.pDescRec)},{h:'Importe mora',get:r=>fmtUSD(r.mora)},
+      {h:'Desc. Rec.',get:r=>fmtUSD(r.descRec)},{h:'% Desc. Rec.',get:r=>descCell(r.pDescRec)},{h:'Importe mora',get:r=>fmtUSD(r.mora)},
     ]},
     {key:'total',name:'Total',bg:'#f4f5f7',hbg:'#eef0f3',cols:[
-      {h:'% Desc. Total',get:r=>icoCell(r.pDescTotal)},
+      {h:'% Desc. Total',get:r=>descCell(r.pDescTotal)},
     ]},
   ];
   const colsOf=g=>(g.summary&&colap[g.key])?[g.summary]:g.cols;
