@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup · Resumen por cohorte — colapsar grupos</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+  :root{--gray-bg:#f2f2f2;--border:#e0e0e0;--text:#111;--text2:#555;--text3:#888;
+    --green:#16a34a;--amber:#d97706;--red:#dc2626;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',system-ui,sans-serif;background:var(--gray-bg);color:var(--text);padding-bottom:60px;}
+  .picker{position:sticky;top:0;z-index:9;background:#111;color:#fff;padding:12px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .picker b{font-size:14px;} .picker span{font-size:12px;color:#bbb;}
+  .picker .opts{display:flex;gap:8px;margin-left:auto;}
+  .picker button{font-family:inherit;font-size:12px;font-weight:600;padding:7px 14px;border-radius:8px;border:1px solid #333;background:#1c1c1c;color:#ddd;cursor:pointer;}
+  .picker button.active{background:#FFD700;color:#111;border-color:#FFD700;}
+  .wrap{max-width:1320px;margin:22px auto;padding:0 24px;}
+  .section{background:#fff;border:0.5px solid var(--border);border-radius:10px;padding:18px 20px;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
+  .stitle{font-size:14px;font-weight:600;}
+  .ssub{font-size:12px;color:var(--text3);margin:2px 0 14px;}
+  .desc{font-size:12px;color:var(--text2);background:#fffbe6;border:1px solid #ffe9a8;border-radius:8px;padding:8px 12px;margin-bottom:14px;}
+
+  /* controles */
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  .chip{font-size:12px;font-weight:600;padding:6px 13px;border-radius:20px;border:1px solid #ddd;background:#fff;color:#555;cursor:pointer;display:inline-flex;align-items:center;gap:7px;}
+  .chip .dot{width:9px;height:9px;border-radius:3px;}
+  .chip.off{opacity:.45;text-decoration:line-through;}
+  .tabs{display:inline-flex;border:1px solid #ddd;border-radius:9px;overflow:hidden;margin-bottom:14px;}
+  .tabs button{font-family:inherit;font-size:12.5px;font-weight:600;padding:7px 16px;border:none;background:#fff;color:#555;cursor:pointer;border-right:1px solid #eee;}
+  .tabs button:last-child{border-right:none;}
+  .tabs button.on{background:#FFD700;color:#111;}
+
+  table{border-collapse:collapse;font-size:12px;width:100%;}
+  th,td{padding:7px 10px;white-space:nowrap;}
+  td.r,th.r{text-align:right;font-variant-numeric:tabular-nums;}
+  thead .grp th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#444;text-align:center;border-bottom:2px solid #fff;cursor:pointer;user-select:none;}
+  thead .col th{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);border-bottom:1.5px solid #e5e7eb;}
+  tbody td{border-bottom:1px solid #f3f4f6;color:#374151;}
+  tbody td.coh{font-weight:600;color:#111;}
+  tbody tr:hover td{filter:brightness(0.985);}
+  .scroll{overflow-x:auto;border:1px solid #eef0f2;border-radius:8px;}
+</style>
+</head>
+<body>
+<div class="picker">
+  <b>Mockup · Resumen por cohorte</b>
+  <span>3 formas de manejar muchas columnas — elige la que más te guste</span>
+  <div class="opts">
+    <button data-m="A" class="active" onclick="setMode('A')">A · Chips de grupos</button>
+    <button data-m="B" onclick="setMode('B')">B · Grupos colapsables</button>
+    <button data-m="C" onclick="setMode('C')">C · Pestañas de sección</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="section">
+    <div class="stitle">Resumen por cohorte</div>
+    <div class="ssub">Secciones: General · <b style="color:#6b7280">Up</b> · <b style="color:#b45454">Cancelaciones</b> · Recurrencia · Total</div>
+    <div class="desc" id="desc"></div>
+    <div id="control"></div>
+    <div class="scroll"><table id="tbl"></table></div>
+  </div>
+</div>
+
+<script>
+  // ---- datos de ejemplo ----
+  const base=[
+    {c:'ago 25',sales:980, fact:9800, imp:280000, meta:238000, pag:235000, impUp:62000, cashUp:47000, impCanc:21000, f1:38000, sumPay:235000, mora:6000},
+    {c:'sep 25',sales:1120,fact:11200,imp:320000, meta:272000, pag:266000, impUp:70000, cashUp:52000, impCanc:24000, f1:42000, sumPay:266000, mora:7200},
+    {c:'oct 25',sales:1080,fact:10800,imp:300000, meta:240000, pag:250000, impUp:66000, cashUp:51000, impCanc:19000, f1:40000, sumPay:250000, mora:5400},
+    {c:'nov 25',sales:1263,fact:12321,imp:352868, meta:230130, pag:253143, impUp:78000, cashUp:58000, impCanc:27000, f1:46000, sumPay:253143, mora:8100},
+    {c:'dic 25',sales:1522,fact:16310,imp:416700, meta:247383, pag:232959, impUp:84000, cashUp:60000, impCanc:33000, f1:52000, sumPay:232959, mora:11200},
+    {c:'ene 26',sales:1895,fact:21355,imp:551099, meta:258483, pag:268483, impUp:96000, cashUp:71000, impCanc:38000, f1:61000, sumPay:268483, mora:9800},
+  ];
+  function derive(r){
+    const imp=r.imp;
+    const montoDescUp=r.cashUp-r.impUp, pDescUp=montoDescUp/imp;
+    const pDescCanc=(r.impCanc/imp)*-1;
+    const impRec=imp-r.impUp-r.impCanc-r.f1;
+    const cashRec=r.sumPay-r.f1;
+    const pPagoRec=impRec!==0?cashRec/impRec-1:null;
+    const descRec=cashRec-impRec;
+    const pDescRec=descRec/imp;
+    const pDescTotal=pDescUp+pDescRec+pDescCanc;
+    return {...r,imp,ticket:imp/r.fact,proy:r.meta/imp,pPag:r.pag/imp,pvp:r.meta>0?r.pag/r.meta-1:null,
+      impUp:r.impUp,cashUp:r.cashUp,pPagoAdel:r.impUp!==0?r.cashUp/r.impUp-1:null,montoDescUp,pDescUp,
+      impCanc:r.impCanc,pDescCanc, impRec,cashRec,pPagoRec,descRec,pDescRec,mora:r.mora, pDescTotal};
+  }
+  const rows=base.map(derive);
+
+  const usd=n=>n==null?'—':'$'+Math.round(n).toLocaleString('es-CO');
+  const pct=n=>n==null?'—':(n*100).toFixed(1)+'%';
+  const spct=n=>n==null?'—':(n>=0?'+':'')+(n*100).toFixed(1)+'%';
+  const COL={green:'#16a34a',amber:'#d97706',red:'#dc2626'};
+  const cPvp=v=>v==null?null:v>=0.03?'green':v>=-0.03?'amber':'red';
+  const cPag=v=>v>=0.65?'green':v>=0.45?'amber':'red';
+  function ico(v,fnc){ if(v==null)return '<span style="color:#9ca3af">—</span>'; const k=fnc(v); const i=k==='green'?'▲':k==='amber'?'▬':'▼'; return `<span style="color:${COL[k]};font-weight:600">${i} ${spct(v)}</span>`; }
+  function dot(v){ const k=cPag(v); return `<span style="color:${COL[k]};font-weight:600">● ${pct(v)}</span>`; }
+
+  // ---- definición de columnas por grupo ----
+  const groups=[
+    {key:'general',name:'General',bg:'#ffffff',hbg:'#ffffff',summary:null,cols:[
+      {h:'Cohorte',cls:'coh',get:r=>r.c},
+      {h:'Sales',r:1,get:r=>r.sales.toLocaleString()},
+      {h:'Facturas',r:1,get:r=>r.fact.toLocaleString()},
+      {h:'Importe',r:1,get:r=>usd(r.imp)},
+      {h:'Ticket',r:1,get:r=>usd(r.ticket)},
+      {h:'Meta hoy',r:1,get:r=>usd(r.meta)},
+      {h:'Proy.',r:1,get:r=>pct(r.proy)},
+      {h:'% Pagado',r:1,get:r=>dot(r.pPag)},
+      {h:'Pago/Proy',r:1,get:r=>ico(r.pvp,cPvp)},
+      {h:'Total pag.',r:1,get:r=>usd(r.pag)},
+    ]},
+    {key:'up',name:'Up',bg:'#f7f8fa',hbg:'#eef0f3',summary:{h:'% Desc. Up',get:r=>ico(r.pDescUp,cPvp)},cols:[
+      {h:'Importe Up',r:1,get:r=>usd(r.impUp)},
+      {h:'Cash Up',r:1,get:r=>usd(r.cashUp)},
+      {h:'% Pago adel.',r:1,get:r=>ico(r.pPagoAdel,cPvp)},
+      {h:'Monto desc. Up',r:1,get:r=>usd(r.montoDescUp)},
+      {h:'% Desc. Up',r:1,get:r=>ico(r.pDescUp,cPvp)},
+    ]},
+    {key:'canc',name:'Cancelaciones',bg:'#EFE5E5',hbg:'#e6d4d4',summary:{h:'% Desc. Canc.',get:r=>ico(r.pDescCanc,cPvp)},cols:[
+      {h:'Importe cancel.',r:1,get:r=>usd(r.impCanc)},
+      {h:'% Desc. Canc.',r:1,get:r=>ico(r.pDescCanc,cPvp)},
+    ]},
+    {key:'rec',name:'Recurrencia',bg:'#ffffff',hbg:'#ffffff',summary:{h:'% Desc. Rec.',get:r=>ico(r.pDescRec,cPvp)},cols:[
+      {h:'Importe Rec.',r:1,get:r=>usd(r.impRec)},
+      {h:'Cash Rec.',r:1,get:r=>usd(r.cashRec)},
+      {h:'% Pago Rec.',r:1,get:r=>ico(r.pPagoRec,cPvp)},
+      {h:'Desc. Rec.',r:1,get:r=>usd(r.descRec)},
+      {h:'% Desc. Rec.',r:1,get:r=>ico(r.pDescRec,cPvp)},
+      {h:'Importe mora',r:1,get:r=>usd(r.mora)},
+    ]},
+    {key:'total',name:'Total',bg:'#f4f5f7',hbg:'#eef0f3',summary:null,cols:[
+      {h:'% Desc. Total',r:1,get:r=>ico(r.pDescTotal,cPvp)},
+    ]},
+  ];
+
+  let mode='A';
+  const shown={general:true,up:true,canc:true,rec:true,total:true};   // para A
+  const collapsed={up:false,canc:false,rec:false};                    // para B
+  let tab='up';                                                       // para C
+
+  function visibleGroups(){
+    if(mode==='A') return groups.filter(g=>shown[g.key]);
+    if(mode==='C') return groups.filter(g=>g.key==='general'||g.key==='total'||g.key===tab);
+    return groups; // B: todos, pero colapsados muestran summary
+  }
+  function colsOf(g){
+    if(mode==='B' && collapsed[g.key]) return [g.summary];
+    return g.cols;
+  }
+
+  function render(){
+    // control
+    const ctrl=document.getElementById('control');
+    const desc=document.getElementById('desc');
+    if(mode==='A'){
+      desc.innerHTML='<b>A · Chips de grupos:</b> toca un chip para mostrar/ocultar todo ese bloque de columnas. (Prueba a apagar «Recurrencia».)';
+      ctrl.innerHTML='<div class="chips">'+groups.map(g=>`<button class="chip ${shown[g.key]?'':'off'}" onclick="toggleChip('${g.key}')"><span class="dot" style="background:${g.bg==='#ffffff'?'#cbd5e1':g.hbg}"></span>${g.name}</button>`).join('')+'</div>';
+    } else if(mode==='B'){
+      desc.innerHTML='<b>B · Grupos colapsables:</b> la fila de color de cada sección tiene ▾/▸. Al colapsar, el grupo se reduce a su columna-resumen (su % principal). (Prueba el ▾ de «Up».)';
+      ctrl.innerHTML='';
+    } else {
+      desc.innerHTML='<b>C · Pestañas de sección:</b> General y Total siempre visibles; el bloque del medio cambia entre Up / Cancelaciones / Recurrencia con las pestañas.';
+      ctrl.innerHTML='<div class="tabs">'+['up','canc','rec'].map(k=>{const g=groups.find(x=>x.key===k);return `<button class="${tab===k?'on':''}" onclick="setTab('${k}')">${g.name}</button>`;}).join('')+'</div>';
+    }
+    // tabla
+    const vg=visibleGroups();
+    let grpRow='<tr class="grp">';
+    vg.forEach(g=>{
+      const span=colsOf(g).length;
+      const tog = (mode==='B' && g.summary)? (collapsed[g.key]?' ▸':' ▾') : '';
+      const click=(mode==='B'&&g.summary)?`onclick="toggleCol('${g.key}')"`:'';
+      grpRow+=`<th colspan="${span}" ${click} style="background:${g.hbg}">${g.name}${tog}</th>`;
+    });
+    grpRow+='</tr>';
+    let colRow='<tr class="col">';
+    vg.forEach(g=>{ colsOf(g).forEach((c,i)=>{ colRow+=`<th class="${c.cls==='coh'?'':'r'}" style="background:${g.bg}">${c.h}</th>`; }); });
+    colRow+='</tr>';
+    let body='';
+    rows.forEach(r=>{ body+='<tr>'; vg.forEach(g=>{ colsOf(g).forEach(c=>{ body+=`<td class="${c.cls||''} ${c.cls==='coh'?'':'r'}" style="background:${g.bg}">${c.get(r)}</td>`; }); }); body+='</tr>'; });
+    document.getElementById('tbl').innerHTML='<thead>'+grpRow+colRow+'</thead><tbody>'+body+'</tbody>';
+  }
+  function setMode(m){mode=m;document.querySelectorAll('.picker button').forEach(b=>b.classList.toggle('active',b.dataset.m===m));render();}
+  function toggleChip(k){shown[k]=!shown[k];render();}
+  function toggleCol(k){collapsed[k]=!collapsed[k];render();}
+  function setTab(k){tab=k;render();}
+  render();
+</script>
+</body>
+</html>

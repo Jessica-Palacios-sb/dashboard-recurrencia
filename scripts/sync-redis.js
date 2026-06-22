@@ -746,6 +746,7 @@ detalle AS (
       WHEN u.id_student IS NOT NULL AND i.ultima_invoice_factura = 1 AND u.ssub_tipo_venta = 'Saldo pendiente suscripción' THEN u.payment_amount_usd
       ELSE 0 END AS cash_up,
     CASE WHEN TRIM(COALESCE(i.num_cuotas::varchar,'')) ~ '^[0-9]+$' THEN CAST(i.num_cuotas AS INT) ELSE NULL END AS nc,
+    CASE WHEN i.ultima_invoice_factura = 1 AND c.fecha_cancelacion IS NOT NULL THEN 1 ELSE 0 END AS cancelados,
     CASE WHEN i.estado = 'Pagada' AND date_trunc('month', i.due_date) = date_trunc('month', i.fecha_pago) THEN 'Pago mismo mes'
       WHEN i.estado = 'Reembolsada' AND date_trunc('month', i.due_date) = date_trunc('month', i.fecha_pago) THEN 'Pago con devolución mismo mes'
       WHEN i.estado = 'Pagada' AND date_trunc('month', i.due_date) != date_trunc('month', i.fecha_pago) THEN 'Pago despues'
@@ -793,7 +794,12 @@ SELECT pais, tipo_cliente,
            THEN (importe / nc) * LEAST(DATEDIFF('month', fecha_cierre, GETDATE()) + 1, nc) ELSE 0 END)::numeric, 2) AS meta_hoy,
   ROUND(SUM(COALESCE(payment_amount_usd,0) + COALESCE(cash_up,0))::numeric, 2) AS total_pagado,
   ROUND(SUM(CASE WHEN Up = 1 THEN COALESCE(cash_sin_pagar,0) ELSE 0 END)::numeric, 2) AS importe_up,
-  ROUND(SUM(COALESCE(cash_up,0))::numeric, 2) AS cash_up
+  ROUND(SUM(COALESCE(cash_up,0))::numeric, 2) AS cash_up,
+  ROUND(SUM(CASE WHEN numero_invoice_factura = 1 THEN COALESCE(payment_amount_usd,0) ELSE 0 END)::numeric, 2) AS cash_factura1,
+  ROUND(SUM(CASE WHEN cancelados = 1 AND Up = 0 THEN COALESCE(cash_sin_pagar,0) ELSE 0 END)::numeric, 2) AS importe_cancel,
+  ROUND(SUM(COALESCE(payment_amount_usd,0))::numeric, 2) AS sum_payment,
+  ROUND(SUM(CASE WHEN estado = 'En Mora' AND Up = 0 AND cancelados = 0 THEN COALESCE(total_amount_usd,0) ELSE 0 END)::numeric, 2) AS importe_mora,
+  ROUND(SUM(CASE WHEN numero_invoice_factura > 1 AND payment_amount_usd > 0 THEN COALESCE(total_amount_usd,0) ELSE 0 END)::numeric, 2) AS importe_rec_pago
 FROM detalle
 WHERE fecha_cierre IS NOT NULL
 GROUP BY 1,2,3,4`;
@@ -801,7 +807,7 @@ GROUP BY 1,2,3,4`;
       const rr = await client.query(QUERY_RESUMEN);
       const funnel = r.rows.filter(x => x.tipo === 'funnel').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, razon: x.k1, oportunidades: +x.n, cash_en_riesgo: +x.cash || 0 }));
       const cohorte = r.rows.filter(x => x.tipo === 'cohorte').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.k1, mes_vencimiento: x.k2, invoices: +x.n }));
-      const resumen = rr.rows.map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.cohorte, sales: +x.sales, facturas: +x.facturas, importe: +x.importe, meta_hoy: +x.meta_hoy, total_pagado: +x.total_pagado, importe_up: +x.importe_up, cash_up: +x.cash_up }));
+      const resumen = rr.rows.map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.cohorte, sales: +x.sales, facturas: +x.facturas, importe: +x.importe, meta_hoy: +x.meta_hoy, total_pagado: +x.total_pagado, importe_up: +x.importe_up, cash_up: +x.cash_up, cash_factura1: +x.cash_factura1, importe_cancel: +x.importe_cancel, sum_payment: +x.sum_payment, importe_mora: +x.importe_mora, importe_rec_pago: +x.importe_rec_pago }));
       return { funnel, cohorte, resumen };
     },
   },
