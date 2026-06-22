@@ -771,8 +771,8 @@ detalle AS (
       WHEN tipo_cancelacion = 'Cancelación por chargeback' THEN 'Chargeback'
       WHEN tipo_cancelacion = 'Cancelación voluntaria' THEN 'Voluntaria'
       WHEN estado_pago = 'No pago' THEN 'En mora sin cancelar' ELSE NULL END AS k1,
-    NULL AS k2, COUNT(*) AS n, ROUND(SUM(COALESCE(cash_sin_pagar, 0))::numeric, 0) AS cash
-  FROM detalle WHERE ultima_invoice_factura = 1 GROUP BY 2,3,4,5
+    TO_CHAR(fecha_cierre, 'YYYY-MM') AS k2, COUNT(*) AS n, ROUND(SUM(COALESCE(cash_sin_pagar, 0))::numeric, 0) AS cash
+  FROM detalle WHERE ultima_invoice_factura = 1 GROUP BY 2,3,4,5,6
 ),
 cohorte AS (
   SELECT 'cohorte' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago,
@@ -805,7 +805,7 @@ WHERE fecha_cierre IS NOT NULL
 GROUP BY 1,2,3,4`;
       const r = await client.query(QUERY);
       const rr = await client.query(QUERY_RESUMEN);
-      const funnel = r.rows.filter(x => x.tipo === 'funnel').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, razon: x.k1, oportunidades: +x.n, cash_en_riesgo: +x.cash || 0 }));
+      const funnel = r.rows.filter(x => x.tipo === 'funnel').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.k2, razon: x.k1, oportunidades: +x.n, cash_en_riesgo: +x.cash || 0 }));
       const cohorte = r.rows.filter(x => x.tipo === 'cohorte').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.k1, mes_vencimiento: x.k2, invoices: +x.n }));
       const resumen = rr.rows.map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.cohorte, sales: +x.sales, facturas: +x.facturas, importe: +x.importe, meta_hoy: +x.meta_hoy, total_pagado: +x.total_pagado, importe_up: +x.importe_up, cash_up: +x.cash_up, cash_factura1: +x.cash_factura1, importe_cancel: +x.importe_cancel, sum_payment: +x.sum_payment, importe_mora: +x.importe_mora, importe_rec_pago: +x.importe_rec_pago }));
       return { funnel, cohorte, resumen };
