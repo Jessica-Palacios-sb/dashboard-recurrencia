@@ -2949,7 +2949,7 @@ function FacturacionTab({data}){
   const resAgg={};
   (data.resumen||[]).filter(matchFiltros).forEach(r=>{
     if(!resAgg[r.cohorte])resAgg[r.cohorte]={sales:0,facturas:0,importe:0,meta:0,pagado:0,impUp:0,cashUp:0};
-    const a=resAgg[r.cohorte]; a.sales+=+r.sales; a.facturas+=+r.facturas; a.importe+=+r.importe; a.meta+=+r.meta_hoy; a.pagado+=+r.total_pagado; a.impUp+=+r.importe_up; a.cashUp+=+r.cash_up;
+    const a=resAgg[r.cohorte]; a.sales+=(+r.sales||0); a.facturas+=(+r.facturas||0); a.importe+=(+r.importe||0); a.meta+=(+r.meta_hoy||0); a.pagado+=(+r.total_pagado||0); a.impUp+=(+r.importe_up||0); a.cashUp+=(+r.cash_up||0);
   });
   const resRows=Object.keys(resAgg).sort().map(c=>{const a=resAgg[c];return {cohorte:c,sales:a.sales,facturas:a.facturas,importe:a.importe,ticket:a.facturas>0?a.importe/a.facturas:0,meta:a.meta,proy:a.importe>0?a.meta/a.importe:0,pagado:a.pagado,pctPag:a.importe>0?a.pagado/a.importe:0,pvp:a.meta>0?a.pagado/a.meta-1:null,impUp:a.impUp,cashUp:a.cashUp,pctAdel:a.impUp!==0?a.cashUp/a.impUp-1:null,descUp:a.cashUp-a.impUp};});
   const COLG={green:'#16a34a',amber:'#d97706',red:'#dc2626'};
