@@ -2915,6 +2915,7 @@ function FacturacionTab({data}){
   const [tipoCli,setTipoCli]=useState('Todos');
   const [tipoPago,setTipoPago]=useState('Todos');
   const [modo,setModo]=useState('num');
+  const [colap,setColap]=useState({up:false,canc:false,rec:false});
 
   const funnel=data.funnel||[], cohorte=data.cohorte||[];
   const paises=['Todos',...[...new Set(funnel.map(r=>r.pais))].filter(Boolean).sort()];
@@ -2945,20 +2946,55 @@ function FacturacionTab({data}){
   const byTipo={}; fF.forEach(r=>{ if(!byTipo[r.tipo_cliente])byTipo[r.tipo_cliente]={}; byTipo[r.tipo_cliente][r.razon]=(byTipo[r.tipo_cliente][r.razon]||0)+ +r.oportunidades; });
   const tipoRows=Object.entries(byTipo).map(([k,v])=>({tipo:k,vals:v,total:Object.values(v).reduce((a,b)=>a+b,0)})).sort((a,b)=>b.total-a.total).slice(0,8);
 
-  // Resumen por cohorte (mes de cierre): sales, facturas, importe, ticket, meta a hoy, proyección, total pagado
+  // Resumen por cohorte (mes de cierre) — secciones General + Up + Cancelaciones + Recurrencia + Total
   const resAgg={};
   (data.resumen||[]).filter(matchFiltros).forEach(r=>{
-    if(!resAgg[r.cohorte])resAgg[r.cohorte]={sales:0,facturas:0,importe:0,meta:0,pagado:0,impUp:0,cashUp:0};
-    const a=resAgg[r.cohorte]; a.sales+=(+r.sales||0); a.facturas+=(+r.facturas||0); a.importe+=(+r.importe||0); a.meta+=(+r.meta_hoy||0); a.pagado+=(+r.total_pagado||0); a.impUp+=(+r.importe_up||0); a.cashUp+=(+r.cash_up||0);
+    if(!resAgg[r.cohorte])resAgg[r.cohorte]={sales:0,facturas:0,importe:0,meta:0,pagado:0,impUp:0,cashUp:0,cashF1:0,impCanc:0,sumPay:0,mora:0,impRecPago:0};
+    const a=resAgg[r.cohorte];
+    a.sales+=(+r.sales||0); a.facturas+=(+r.facturas||0); a.importe+=(+r.importe||0); a.meta+=(+r.meta_hoy||0); a.pagado+=(+r.total_pagado||0);
+    a.impUp+=(+r.importe_up||0); a.cashUp+=(+r.cash_up||0); a.cashF1+=(+r.cash_factura1||0); a.impCanc+=(+r.importe_cancel||0);
+    a.sumPay+=(+r.sum_payment||0); a.mora+=(+r.importe_mora||0); a.impRecPago+=(+r.importe_rec_pago||0);
   });
-  const resRows=Object.keys(resAgg).sort().map(c=>{const a=resAgg[c];return {cohorte:c,sales:a.sales,facturas:a.facturas,importe:a.importe,ticket:a.facturas>0?a.importe/a.facturas:0,meta:a.meta,proy:a.importe>0?a.meta/a.importe:0,pagado:a.pagado,pctPag:a.importe>0?a.pagado/a.importe:0,pvp:a.meta>0?a.pagado/a.meta-1:null,impUp:a.impUp,cashUp:a.cashUp,pctAdel:a.impUp!==0?a.cashUp/a.impUp-1:null,descUp:a.cashUp-a.impUp};});
+  const resRows=Object.keys(resAgg).sort().map(c=>{
+    const a=resAgg[c], imp=a.importe;
+    const descUp=a.cashUp-a.impUp, pDescUp=imp?descUp/imp:0;
+    const pDescCanc=imp?-(a.impCanc/imp):0;
+    const impRec=imp-a.impUp-a.impCanc-a.cashF1, cashRec=a.sumPay-a.cashF1, descRec=cashRec-a.impRecPago, pDescRec=imp?descRec/imp:0;
+    return {cohorte:c,sales:a.sales,facturas:a.facturas,importe:imp,ticket:a.facturas>0?imp/a.facturas:0,meta:a.meta,proy:imp?a.meta/imp:0,pctPag:imp?a.pagado/imp:0,pvp:a.meta>0?a.pagado/a.meta-1:null,pagado:a.pagado,
+      impUp:a.impUp,cashUp:a.cashUp,pctAdel:a.impUp!==0?a.cashUp/a.impUp-1:null,descUp,pDescUp,
+      impCanc:a.impCanc,pDescCanc,
+      impRec,cashRec,pPagoRec:impRec!==0?cashRec/impRec-1:null,descRec,pDescRec,mora:a.mora,
+      pDescTotal:pDescUp+pDescRec+pDescCanc};
+  });
   const COLG={green:'#16a34a',amber:'#d97706',red:'#dc2626'};
   const colPag=p=>p>=0.65?'green':p>=0.45?'amber':'red';
   const colPvp=v=>v>=0.03?'green':v>=-0.03?'amber':'red';
-  const thR={padding:'8px 10px',textAlign:'right',position:'sticky',top:0,background:'#fff',borderBottom:'1.5px solid #e5e7eb',zIndex:1};
-  const thL={...thR,textAlign:'left'};
-  const thG={...thR,background:'#eef0f3'};
-  const tdG={padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums',background:'#f7f8fa'};
+  const pctTxt=v=>(v*100).toFixed(1)+'%';
+  const dotCell=v=>v==null?<span style={{color:'#9ca3af'}}>—</span>:<span style={{color:COLG[colPag(v)],fontWeight:600}}>● {pctTxt(v)}</span>;
+  const icoCell=v=>{ if(v==null)return <span style={{color:'#9ca3af'}}>—</span>; const k=colPvp(v); return <span style={{color:COLG[k],fontWeight:600}}>{k==='green'?'▲':k==='amber'?'▬':'▼'} {(v>=0?'+':'')+pctTxt(v)}</span>; };
+  const grupos=[
+    {key:'general',name:'General',bg:'#fff',hbg:'#fff',cols:[
+      {h:'Cohorte',align:'left',get:r=>mesCorto(r.cohorte)},
+      {h:'Sales',get:r=>fmt(r.sales)},{h:'Facturas',get:r=>fmt(r.facturas)},{h:'Importe',get:r=>fmtUSD(r.importe)},
+      {h:'Ticket',get:r=>fmtUSD(r.ticket)},{h:'Meta a hoy',get:r=>fmtUSD(r.meta)},{h:'Proyección',get:r=>pctTxt(r.proy)},
+      {h:'% Pagado',get:r=>dotCell(r.pctPag)},{h:'Pago / Proy.',get:r=>icoCell(r.pvp)},{h:'Total pagado',get:r=>fmtUSD(r.pagado)},
+    ]},
+    {key:'up',name:'Up',bg:'#f7f8fa',hbg:'#eef0f3',summary:{h:'% Desc. Up',get:r=>icoCell(r.pDescUp)},cols:[
+      {h:'Importe Up',get:r=>fmtUSD(r.impUp)},{h:'Cash Up',get:r=>fmtUSD(r.cashUp)},{h:'% Pago adel.',get:r=>icoCell(r.pctAdel)},
+      {h:'Monto desc. Up',get:r=>fmtUSD(r.descUp)},{h:'% Desc. Up',get:r=>icoCell(r.pDescUp)},
+    ]},
+    {key:'canc',name:'Cancelaciones',bg:'#EFE5E5',hbg:'#e6d4d4',summary:{h:'% Desc. Canc.',get:r=>icoCell(r.pDescCanc)},cols:[
+      {h:'Importe cancel.',get:r=>fmtUSD(r.impCanc)},{h:'% Desc. Canc.',get:r=>icoCell(r.pDescCanc)},
+    ]},
+    {key:'rec',name:'Recurrencia',bg:'#fff',hbg:'#fff',summary:{h:'% Desc. Rec.',get:r=>icoCell(r.pDescRec)},cols:[
+      {h:'Importe Rec.',get:r=>fmtUSD(r.impRec)},{h:'Cash Rec.',get:r=>fmtUSD(r.cashRec)},{h:'% Pago Rec.',get:r=>icoCell(r.pPagoRec)},
+      {h:'Desc. Rec.',get:r=>fmtUSD(r.descRec)},{h:'% Desc. Rec.',get:r=>icoCell(r.pDescRec)},{h:'Importe mora',get:r=>fmtUSD(r.mora)},
+    ]},
+    {key:'total',name:'Total',bg:'#f4f5f7',hbg:'#eef0f3',cols:[
+      {h:'% Desc. Total',get:r=>icoCell(r.pDescTotal)},
+    ]},
+  ];
+  const colsOf=g=>(g.summary&&colap[g.key])?[g.summary]:g.cols;
 
   const sel=(val,set,opts,label)=>(
     <label style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12,color:'#555'}}>{label}
@@ -3027,45 +3063,30 @@ function FacturacionTab({data}){
 
     <section className="chart-section">
       <SectionTitle>Resumen por cohorte</SectionTitle>
-      <p style={{margin:'-4px 0 14px',fontSize:12,color:'#9ca3af'}}>Por mes de cierre de la oportunidad. Importe esperado, ticket, meta a hoy y cobrado real.</p>
+      <p style={{margin:'-4px 0 14px',fontSize:12,color:'#9ca3af'}}>Por mes de cierre · secciones: General · <b style={{color:'#6b7280'}}>Up</b> · <b style={{color:'#b45454'}}>Cancelaciones</b> · Recurrencia · Total. Toca una banda de sección (▾/▸) para colapsarla a su % resumen.</p>
       {resRows.length===0 ? <div style={{fontSize:13,color:'#9ca3af',padding:'12px 0'}}>Sin datos para el filtro.</div> : (
-      <div style={{overflowX:'auto',overflowY:'auto',maxHeight:440,border:'1px solid #eef0f2',borderRadius:8}}>
-        <table style={{borderCollapse:'collapse',fontSize:12,width:'100%',minWidth:760}}>
+      <div style={{overflowX:'auto',overflowY:'auto',maxHeight:460,border:'1px solid #eef0f2',borderRadius:8}}>
+        <table style={{borderCollapse:'collapse',fontSize:12,width:'100%'}}>
           <thead>
-            <tr style={{color:'#888'}}>
-              <th style={thL}>Cohorte</th>
-              <th style={thR}>Sales</th>
-              <th style={thR}>Facturas</th>
-              <th style={thR}>Importe</th>
-              <th style={thR}>Ticket</th>
-              <th style={thR}>Meta a hoy</th>
-              <th style={thR}>Proyección</th>
-              <th style={thR}>% Pagado</th>
-              <th style={thR}>Pago / Proy.</th>
-              <th style={thR}>Total pagado</th>
-              <th style={thG} title="Upselling">Importe Up</th>
-              <th style={thG}>Cash Up</th>
-              <th style={thG}>% Pago adelanto</th>
-              <th style={thG}>Monto desc. Up</th>
+            <tr>
+              {grupos.map(g=>{const cs=colsOf(g);const cl=!!g.summary;return(
+                <th key={g.key} colSpan={cs.length} onClick={cl?()=>setColap(p=>({...p,[g.key]:!p[g.key]})):undefined}
+                  style={{position:'sticky',top:0,zIndex:3,background:g.hbg,padding:'7px 10px',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.5px',color:'#444',textAlign:'center',borderRight:'2px solid #fff',borderBottom:'2px solid #fff',cursor:cl?'pointer':'default',whiteSpace:'nowrap'}}>
+                  {g.name}{cl?(colap[g.key]?' ▸':' ▾'):''}
+                </th>);})}
+            </tr>
+            <tr>
+              {grupos.flatMap(g=>colsOf(g).map((c,i)=>(
+                <th key={g.key+i} style={{position:'sticky',top:28,zIndex:2,background:g.bg,padding:'7px 10px',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.3px',color:'#888',textAlign:c.align||'right',borderBottom:'1.5px solid #e5e7eb',whiteSpace:'nowrap'}}>{c.h}</th>
+              )))}
             </tr>
           </thead>
           <tbody>
             {resRows.map(r=>(
-              <tr key={r.cohorte} style={{borderBottom:'1px solid #f3f4f6',color:'#374151'}}>
-                <td style={{padding:'7px 10px',textAlign:'left',fontWeight:600}}>{mesCorto(r.cohorte)}</td>
-                <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmt(r.sales)}</td>
-                <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmt(r.facturas)}</td>
-                <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtUSD(r.importe)}</td>
-                <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtUSD(r.ticket)}</td>
-                <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtUSD(r.meta)}</td>
-                <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{(r.proy*100).toFixed(1)}%</td>
-                <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}><span style={{color:COLG[colPag(r.pctPag)],fontWeight:600}}>● {(r.pctPag*100).toFixed(1)}%</span></td>
-                <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{r.pvp==null?<span style={{color:'#9ca3af'}}>—</span>:<span style={{color:COLG[colPvp(r.pvp)],fontWeight:600}}>{colPvp(r.pvp)==='green'?'▲':colPvp(r.pvp)==='amber'?'▬':'▼'} {(r.pvp>=0?'+':'')+(r.pvp*100).toFixed(1)}%</span>}</td>
-                <td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtUSD(r.pagado)}</td>
-                <td style={tdG}>{fmtUSD(r.impUp)}</td>
-                <td style={tdG}>{fmtUSD(r.cashUp)}</td>
-                <td style={tdG}>{r.pctAdel==null?<span style={{color:'#9ca3af'}}>—</span>:<span style={{color:COLG[colPvp(r.pctAdel)],fontWeight:600}}>{colPvp(r.pctAdel)==='green'?'▲':colPvp(r.pctAdel)==='amber'?'▬':'▼'} {(r.pctAdel>=0?'+':'')+(r.pctAdel*100).toFixed(1)}%</span>}</td>
-                <td style={tdG}>{fmtUSD(r.descUp)}</td>
+              <tr key={r.cohorte}>
+                {grupos.flatMap(g=>colsOf(g).map((c,i)=>(
+                  <td key={g.key+i} style={{padding:'7px 10px',textAlign:c.align||'right',fontVariantNumeric:'tabular-nums',background:g.bg,whiteSpace:'nowrap',fontWeight:c.align==='left'?600:400,color:c.align==='left'?'#111':'#374151',borderBottom:'1px solid #f3f4f6'}}>{c.get(r)}</td>
+                )))}
               </tr>
             ))}
           </tbody>
