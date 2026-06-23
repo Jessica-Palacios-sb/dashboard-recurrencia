@@ -499,7 +499,7 @@ GROUP BY mes_cancel, mes_inicio, tipo_cancelacion, tipo_pago, pais_agrupado, mes
         client.query(`
 SELECT TO_CHAR(DATE_TRUNC('month', fecha_cierre), 'YYYY-MM') AS mes,
   CASE WHEN pais_agrupado IN ('México','Mexico') THEN 'México' WHEN pais_agrupado = 'Colombia' THEN 'Colombia' WHEN pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos' ELSE 'Otros' END AS pais_agrupado,
-  CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago,
+  CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago, tipo_venta,
   COUNT(DISTINCT student_id) AS nuevos_clientes
 FROM (
   SELECT o.student_id, o.fecha_cierre, o.tipo_pago, e.pais_agrupado,
@@ -766,31 +766,31 @@ detalle AS (
 )`;
       const QUERY = `${DETALLE}
 , funnel AS (
-  SELECT 'funnel' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago,
+  SELECT 'funnel' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago, tipo_venta,
     CASE WHEN Up = 1 THEN 'Upgrade' WHEN tipo_cancelacion = 'Cancelación por mora' THEN 'Por mora'
       WHEN tipo_cancelacion = 'Cancelación por chargeback' THEN 'Chargeback'
       WHEN tipo_cancelacion = 'Cancelación voluntaria' THEN 'Voluntaria'
       WHEN estado_pago = 'No pago' THEN 'En mora sin cancelar' ELSE NULL END AS k1,
     TO_CHAR(fecha_cierre, 'YYYY-MM') AS k2, COUNT(*) AS n, ROUND(SUM(COALESCE(cash_sin_pagar, 0))::numeric, 0) AS cash
-  FROM detalle WHERE ultima_invoice_factura = 1 GROUP BY 2,3,4,5,6
+  FROM detalle WHERE ultima_invoice_factura = 1 GROUP BY 2,3,4,5,6,7
 ),
 cohorte AS (
-  SELECT 'cohorte' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago,
+  SELECT 'cohorte' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago, tipo_venta,
     TO_CHAR(fecha_cierre, 'YYYY-MM') AS k1, TO_CHAR(due_date, 'YYYY-MM') AS k2, COUNT(*) AS n, NULL AS cash
-  FROM detalle WHERE fecha_cierre IS NOT NULL AND due_date IS NOT NULL GROUP BY 2,3,4,5,6
+  FROM detalle WHERE fecha_cierre IS NOT NULL AND due_date IS NOT NULL GROUP BY 2,3,4,5,6,7
 ),
 pagos AS (
-  SELECT 'pagos' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago,
+  SELECT 'pagos' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago, tipo_venta,
     TO_CHAR(fecha_cierre, 'YYYY-MM') AS k1, CAST(numero_invoice_factura AS varchar) AS k2,
     SUM(CASE WHEN payment_amount_usd > 0 THEN 1 ELSE 0 END) AS n,
     ROUND(SUM(COALESCE(payment_amount_usd, 0))::numeric, 0) AS cash
-  FROM detalle WHERE fecha_cierre IS NOT NULL AND numero_invoice_factura BETWEEN 1 AND 24 GROUP BY 2,3,4,5,6
+  FROM detalle WHERE fecha_cierre IS NOT NULL AND numero_invoice_factura BETWEEN 1 AND 24 GROUP BY 2,3,4,5,6,7
 )
 SELECT * FROM funnel WHERE k1 IS NOT NULL UNION ALL SELECT * FROM cohorte UNION ALL SELECT * FROM pagos`;
       // Resumen por cohorte (mes de cierre): sales, facturas, importe, meta a hoy, total pagado.
       const QUERY_RESUMEN = `${DETALLE}
 SELECT pais, tipo_cliente,
-  CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago,
+  CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago, tipo_venta,
   TO_CHAR(fecha_cierre, 'YYYY-MM') AS cohorte,
   SUM(CASE WHEN numero_invoice_factura = 1 THEN 1 ELSE 0 END) AS sales,
   SUM(CASE WHEN ultima_invoice_factura = 1 AND tipo_pago = 'Cuotas' THEN nc
@@ -809,13 +809,13 @@ SELECT pais, tipo_cliente,
   ROUND(SUM(CASE WHEN numero_invoice_factura > 1 AND payment_amount_usd > 0 THEN COALESCE(total_amount_usd,0) ELSE 0 END)::numeric, 2) AS importe_rec_pago
 FROM detalle
 WHERE fecha_cierre IS NOT NULL
-GROUP BY 1,2,3,4`;
+GROUP BY 1,2,3,4,5`;
       const r = await client.query(QUERY);
       const rr = await client.query(QUERY_RESUMEN);
-      const funnel = r.rows.filter(x => x.tipo === 'funnel').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.k2, razon: x.k1, oportunidades: +x.n, cash_en_riesgo: +x.cash || 0 }));
-      const cohorte = r.rows.filter(x => x.tipo === 'cohorte').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.k1, mes_vencimiento: x.k2, invoices: +x.n }));
-      const pagos = r.rows.filter(x => x.tipo === 'pagos').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.k1, numero: +x.k2, facturas: +x.n, cash: +x.cash || 0 }));
-      const resumen = rr.rows.map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.cohorte, sales: +x.sales, facturas: +x.facturas, importe: +x.importe, meta_hoy: +x.meta_hoy, total_pagado: +x.total_pagado, importe_up: +x.importe_up, cash_up: +x.cash_up, cash_factura1: +x.cash_factura1, importe_cancel: +x.importe_cancel, sum_payment: +x.sum_payment, importe_mora: +x.importe_mora, importe_rec_pago: +x.importe_rec_pago }));
+      const funnel = r.rows.filter(x => x.tipo === 'funnel').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, tipo_venta: x.tipo_venta, cohorte: x.k2, razon: x.k1, oportunidades: +x.n, cash_en_riesgo: +x.cash || 0 }));
+      const cohorte = r.rows.filter(x => x.tipo === 'cohorte').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, tipo_venta: x.tipo_venta, cohorte: x.k1, mes_vencimiento: x.k2, invoices: +x.n }));
+      const pagos = r.rows.filter(x => x.tipo === 'pagos').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, tipo_venta: x.tipo_venta, cohorte: x.k1, numero: +x.k2, facturas: +x.n, cash: +x.cash || 0 }));
+      const resumen = rr.rows.map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, tipo_venta: x.tipo_venta, cohorte: x.cohorte, sales: +x.sales, facturas: +x.facturas, importe: +x.importe, meta_hoy: +x.meta_hoy, total_pagado: +x.total_pagado, importe_up: +x.importe_up, cash_up: +x.cash_up, cash_factura1: +x.cash_factura1, importe_cancel: +x.importe_cancel, sum_payment: +x.sum_payment, importe_mora: +x.importe_mora, importe_rec_pago: +x.importe_rec_pago }));
       return { funnel, cohorte, resumen, pagos };
     },
   },
