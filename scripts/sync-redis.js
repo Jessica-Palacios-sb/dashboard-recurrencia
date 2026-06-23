@@ -778,8 +778,15 @@ cohorte AS (
   SELECT 'cohorte' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago,
     TO_CHAR(fecha_cierre, 'YYYY-MM') AS k1, TO_CHAR(due_date, 'YYYY-MM') AS k2, COUNT(*) AS n, NULL AS cash
   FROM detalle WHERE fecha_cierre IS NOT NULL AND due_date IS NOT NULL GROUP BY 2,3,4,5,6
+),
+pagos AS (
+  SELECT 'pagos' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago,
+    TO_CHAR(fecha_cierre, 'YYYY-MM') AS k1, CAST(numero_invoice_factura AS varchar) AS k2,
+    SUM(CASE WHEN payment_amount_usd > 0 THEN 1 ELSE 0 END) AS n,
+    ROUND(SUM(COALESCE(payment_amount_usd, 0))::numeric, 0) AS cash
+  FROM detalle WHERE fecha_cierre IS NOT NULL AND numero_invoice_factura BETWEEN 1 AND 24 GROUP BY 2,3,4,5,6
 )
-SELECT * FROM funnel WHERE k1 IS NOT NULL UNION ALL SELECT * FROM cohorte`;
+SELECT * FROM funnel WHERE k1 IS NOT NULL UNION ALL SELECT * FROM cohorte UNION ALL SELECT * FROM pagos`;
       // Resumen por cohorte (mes de cierre): sales, facturas, importe, meta a hoy, total pagado.
       const QUERY_RESUMEN = `${DETALLE}
 SELECT pais, tipo_cliente,
@@ -807,8 +814,9 @@ GROUP BY 1,2,3,4`;
       const rr = await client.query(QUERY_RESUMEN);
       const funnel = r.rows.filter(x => x.tipo === 'funnel').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.k2, razon: x.k1, oportunidades: +x.n, cash_en_riesgo: +x.cash || 0 }));
       const cohorte = r.rows.filter(x => x.tipo === 'cohorte').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.k1, mes_vencimiento: x.k2, invoices: +x.n }));
+      const pagos = r.rows.filter(x => x.tipo === 'pagos').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.k1, numero: +x.k2, facturas: +x.n, cash: +x.cash || 0 }));
       const resumen = rr.rows.map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, cohorte: x.cohorte, sales: +x.sales, facturas: +x.facturas, importe: +x.importe, meta_hoy: +x.meta_hoy, total_pagado: +x.total_pagado, importe_up: +x.importe_up, cash_up: +x.cash_up, cash_factura1: +x.cash_factura1, importe_cancel: +x.importe_cancel, sum_payment: +x.sum_payment, importe_mora: +x.importe_mora, importe_rec_pago: +x.importe_rec_pago }));
-      return { funnel, cohorte, resumen };
+      return { funnel, cohorte, resumen, pagos };
     },
   },
 
