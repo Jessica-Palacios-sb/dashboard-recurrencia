@@ -525,11 +525,6 @@ GROUP BY DATE_TRUNC('month', fecha_cierre), pais_agrupado, 3 ORDER BY mes;`),
     CAST(fecha_cancelacion AS date) AS fecha_cancelacion, tipo_cancelacion
   FROM salesforce.tabla_intermedia_estado_clientes WHERE tipo_oportunidad = 'Suscripciones'
 )`;
-      const SUSP_HIST = `(
-  SELECT accountid AS student_id, MAX(CAST(createddate AS date)) AS fecha_susp
-  FROM "salesforce-database".account_history
-  WHERE newvalue = 'Suspendido' AND field = 'SBEEMO_LS_SUB_ESTADO_USUARIO__c' GROUP BY accountid
-)`;
       const QUERY_FLUJO = `
 WITH e AS ${ESTADO_SUS},
 nuevos AS (SELECT TO_CHAR(DATE_TRUNC('month', fecha_cierre),'YYYY-MM') AS mes, COUNT(*) AS nuevos FROM e WHERE fecha_cierre IS NOT NULL GROUP BY 1),
@@ -551,8 +546,8 @@ SELECT mes, nuevos, cancelados, voluntarias, mora, 0 AS suspendidos, 0 AS acum_s
   ROUND(cancelados * 100.0 / NULLIF(cum_nuevos - cum_cancel_prev, 0), 2) AS churn,
   ROUND(cancelados * 100.0 / NULLIF(cum_nuevos - cum_cancel_prev, 0), 2) AS churn_neto
 FROM calc ORDER BY mes;`;
-      const QUERY_TIPOS = `SELECT COALESCE(tipo_cancelacion,'(null)') AS tipo, COUNT(*) AS n FROM ${ESTADO_SUS} e WHERE estado_usuario = 'Inactivo' GROUP BY 1 ORDER BY n DESC;`;
-      const [r1, r2, r3, r4, r5, r6, r7, r8] = await Promise.all([
+      const c2 = getClient(); await c2.connect();
+      const [r1, r2, r3, r4, r5, r6, r7] = await Promise.all([
         client.query(`
 SELECT TO_CHAR(DATE_TRUNC('month', MIN(o.fecha_cierre)), 'YYYY-MM') AS mes, COUNT(DISTINCT o.student_id) AS nuevos_clientes
 FROM salesforce.tabla_core_oportunidades o
@@ -626,10 +621,10 @@ agrupado AS (
 ),
 sorted AS (SELECT rango_vida, tipo_cancelacion, cantidad, avg_meses, CASE rango_vida WHEN 'Mes 1' THEN 1 WHEN 'Mes 2-3' THEN 2 WHEN 'Mes 4-6' THEN 3 WHEN 'Mes 7-12' THEN 4 ELSE 5 END AS orden FROM agrupado)
 SELECT rango_vida, tipo_cancelacion, cantidad, avg_meses FROM sorted ORDER BY orden, tipo_cancelacion;`),
-        client.query(QUERY_FLUJO),
-        client.query(QUERY_TIPOS),
+        c2.query(QUERY_FLUJO),
       ]);
-      return { nuevos: r1.rows, cancelaciones: r2.rows, tasaChurn: r3.rows, tiempoVida: r6.rows, motivos: r4.rows, churnPais: r5.rows, flujo: r7.rows, tiposCancel: r8.rows };
+      await c2.end();
+      return { nuevos: r1.rows, cancelaciones: r2.rows, tasaChurn: r3.rows, tiempoVida: r6.rows, motivos: r4.rows, churnPais: r5.rows, flujo: r7.rows };
     },
   },
 
