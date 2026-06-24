@@ -457,6 +457,17 @@ function ChurnTab({data}){
   const cancelStack = Object.values(cancelMes)
     .sort((a,b) => a.mes.localeCompare(b.mes));
 
+  // Tabla mensual de flujo de suscriptores (nuevos / cancelados / activos / churn)
+  const mesLabel = m => { try { return new Date(m+'-01T00:00:00').toLocaleDateString('es',{month:'short',year:'numeric'}).replace('.',''); } catch { return m; } };
+  const tablaChurn = tasaData.map((td,i)=>{
+    const m=td.mes, cm=cancelMes[m]||{};
+    const prev=i>0?+tasaData[i-1].tasa:null;
+    const dir=prev==null?null:(+td.tasa>prev+0.05?'up':+td.tasa<prev-0.05?'down':'flat');
+    return {mes:m, nuevos:nuevosMes[m]?.nuevos||0, cancelados:+td.cancelaciones||cm.total||0,
+      voluntarias:cm['Voluntaria']||0, mora:cm['Por mora']||0, activos:+td.clientes||0,
+      churn:+td.tasa, dir, suspendidos:0, activosNetos:+td.clientes||0, churnNeto:+td.tasa};
+  });
+
   // Tiempo de vida — agrupar por rango
   const vidaRangos = {};
   (data.tiempoVida||[]).forEach(r=>{
@@ -563,6 +574,47 @@ function ChurnTab({data}){
             <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1}/>
           </ComposedChart>
         </ResponsiveContainer>
+      </section>
+
+      {/* Tabla mensual de flujo de suscriptores */}
+      <section className="chart-section">
+        <h2 className="section-title">Flujo mensual de suscriptores</h2>
+        <p style={{margin:'-6px 0 14px',fontSize:12,color:'#888'}}>Nuevos, cancelados (voluntarias + mora), activos y tasa de churn por mes. Churn: <span style={{color:'#dc2626',fontWeight:600}}>↑ sube</span> · <span style={{color:'#16a34a',fontWeight:600}}>↓ baja</span> · <span style={{color:'#d97706',fontWeight:600}}>→ estable</span> (vs mes previo). Activos y churn desde mar 2024 (base Zuora).</p>
+        {tablaChurn.length===0 ? <div style={{fontSize:13,color:'#9ca3af',padding:'12px 0'}}>Sin datos para el rango.</div> : (
+        <div style={{overflowX:'auto',overflowY:'auto',maxHeight:480,border:'1px solid #eef0f2',borderRadius:8}}>
+          <table style={{borderCollapse:'collapse',fontSize:12,width:'100%',minWidth:920}}>
+            <thead>
+              <tr>
+                {['Año mes','Nuevos','Cancelados','Voluntarias','Por mora','Activos','Churn','Suspendidos','Acum. susp.','Activos netos','Churn neto'].map((h,i)=>
+                  <th key={h} style={{position:'sticky',top:0,background:'#fff',padding:'8px 10px',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'.4px',color:'#888',textAlign:i===0?'left':'right',borderBottom:'1.5px solid #e5e7eb',whiteSpace:'nowrap'}}>{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {tablaChurn.map(r=>{
+                const dc = r.dir==='up'?'#dc2626':r.dir==='down'?'#16a34a':'#d97706';
+                const di = r.dir==='up'?'↑':r.dir==='down'?'↓':'→';
+                const churnTxt = (v)=><span style={{color:dc,fontWeight:600}}>{r.dir?di+' ':''}{(+v).toFixed(1)}%</span>;
+                const td2 = (val,extra={})=><td style={{padding:'7px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums',...extra}}>{val}</td>;
+                return (
+                  <tr key={r.mes} style={{borderBottom:'1px solid #f3f4f6'}}>
+                    <td style={{padding:'7px 10px',textAlign:'left',fontWeight:600,color:'#111',whiteSpace:'nowrap'}}>{mesLabel(r.mes)}</td>
+                    {td2(fmt(r.nuevos),{color:'#10b981'})}
+                    {td2(fmt(r.cancelados),{color:'#ef4444'})}
+                    {td2(fmt(r.voluntarias),{color:'#f59e0b'})}
+                    {td2(fmt(r.mora),{color:'#ef4444'})}
+                    {td2(fmt(r.activos),{fontWeight:600,color:'#111'})}
+                    {td2(churnTxt(r.churn))}
+                    {td2(fmt(r.suspendidos),{color:'#9ca3af'})}
+                    {td2('0',{color:'#9ca3af'})}
+                    {td2(fmt(r.activosNetos),{fontWeight:600,color:'#111'})}
+                    {td2(churnTxt(r.churnNeto))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        )}
       </section>
 
       {/* Tasa de churn + Cancelaciones por tipo */}
