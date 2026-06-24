@@ -537,23 +537,19 @@ cancel AS (SELECT TO_CHAR(DATE_TRUNC('month', fecha_cancelacion),'YYYY-MM') AS m
     SUM(CASE WHEN LOWER(COALESCE(tipo_cancelacion,'')) LIKE '%mora%' THEN 1 ELSE 0 END) AS mora,
     SUM(CASE WHEN LOWER(COALESCE(tipo_cancelacion,'')) NOT LIKE '%mora%' THEN 1 ELSE 0 END) AS voluntarias
   FROM e WHERE estado_usuario = 'Inactivo' AND fecha_cancelacion IS NOT NULL GROUP BY 1),
-susp AS (SELECT TO_CHAR(DATE_TRUNC('month', h.fecha_susp),'YYYY-MM') AS mes, COUNT(*) AS suspendidos
-  FROM e JOIN ${SUSP_HIST} h ON e.student_id = h.student_id
-  WHERE e.sub_estado_usuario = 'Suspendido' AND e.estado_usuario = 'Activo' AND h.fecha_susp IS NOT NULL GROUP BY 1),
-meses AS (SELECT mes FROM nuevos UNION SELECT mes FROM cancel UNION SELECT mes FROM susp),
+meses AS (SELECT mes FROM nuevos UNION SELECT mes FROM cancel),
 base AS (SELECT m.mes, COALESCE(n.nuevos,0) AS nuevos, COALESCE(c.cancelados,0) AS cancelados,
-    COALESCE(c.voluntarias,0) AS voluntarias, COALESCE(c.mora,0) AS mora, COALESCE(s.suspendidos,0) AS suspendidos
-  FROM meses m LEFT JOIN nuevos n ON m.mes=n.mes LEFT JOIN cancel c ON m.mes=c.mes LEFT JOIN susp s ON m.mes=s.mes),
-calc AS (SELECT mes, nuevos, cancelados, voluntarias, mora, suspendidos,
+    COALESCE(c.voluntarias,0) AS voluntarias, COALESCE(c.mora,0) AS mora
+  FROM meses m LEFT JOIN nuevos n ON m.mes=n.mes LEFT JOIN cancel c ON m.mes=c.mes),
+calc AS (SELECT mes, nuevos, cancelados, voluntarias, mora,
     SUM(nuevos) OVER (ORDER BY mes) AS cum_nuevos,
-    COALESCE(SUM(cancelados) OVER (ORDER BY mes ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS cum_cancel_prev,
-    SUM(suspendidos) OVER (ORDER BY mes) AS acum_susp
+    COALESCE(SUM(cancelados) OVER (ORDER BY mes ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS cum_cancel_prev
   FROM base)
-SELECT mes, nuevos, cancelados, voluntarias, mora, suspendidos, acum_susp AS acum_suspendidos,
+SELECT mes, nuevos, cancelados, voluntarias, mora, 0 AS suspendidos, 0 AS acum_suspendidos,
   (cum_nuevos - cum_cancel_prev) AS activos,
-  (cum_nuevos - cum_cancel_prev - acum_susp) AS activos_netos,
+  (cum_nuevos - cum_cancel_prev) AS activos_netos,
   ROUND(cancelados * 100.0 / NULLIF(cum_nuevos - cum_cancel_prev, 0), 2) AS churn,
-  ROUND(cancelados * 100.0 / NULLIF(cum_nuevos - cum_cancel_prev - acum_susp, 0), 2) AS churn_neto
+  ROUND(cancelados * 100.0 / NULLIF(cum_nuevos - cum_cancel_prev, 0), 2) AS churn_neto
 FROM calc ORDER BY mes;`;
       const QUERY_TIPOS = `SELECT COALESCE(tipo_cancelacion,'(null)') AS tipo, COUNT(*) AS n FROM ${ESTADO_SUS} e WHERE estado_usuario = 'Inactivo' GROUP BY 1 ORDER BY n DESC;`;
       const [r1, r2, r3, r4, r5, r6, r7, r8] = await Promise.all([
