@@ -520,7 +520,34 @@ GROUP BY DATE_TRUNC('month', fecha_cierre), pais_agrupado, 3 ORDER BY mes;`),
     name: 'churn',
     cacheKey: 'cache:churn_v2',
     async run(client) {
-      const [r1, r2, r3, r4, r5, r6] = await Promise.all([
+      const ESTADO_SUS = `(
+  SELECT student_id, CAST(fecha_cierre AS date) AS fecha_cierre, estado_usuario, sub_estado_usuario,
+    CAST(fecha_cancelacion AS date) AS fecha_cancelacion, tipo_cancelacion
+  FROM salesforce.tabla_intermedia_estado_clientes WHERE tipo_oportunidad = 'Suscripciones' AND fecha_cierre >= '2023-08-01'
+)`;
+      const QUERY_FLUJO = `
+WITH e AS ${ESTADO_SUS},
+nuevos AS (SELECT TO_CHAR(DATE_TRUNC('month', fecha_cierre),'YYYY-MM') AS mes, COUNT(*) AS nuevos FROM e WHERE fecha_cierre IS NOT NULL GROUP BY 1),
+cancel AS (SELECT TO_CHAR(DATE_TRUNC('month', fecha_cancelacion),'YYYY-MM') AS mes, COUNT(*) AS cancelados,
+    SUM(CASE WHEN LOWER(COALESCE(tipo_cancelacion,'')) LIKE '%mora%' THEN 1 ELSE 0 END) AS mora,
+    SUM(CASE WHEN LOWER(COALESCE(tipo_cancelacion,'')) NOT LIKE '%mora%' THEN 1 ELSE 0 END) AS voluntarias
+  FROM e WHERE estado_usuario = 'Inactivo' AND fecha_cancelacion IS NOT NULL GROUP BY 1),
+meses AS (SELECT mes FROM nuevos UNION SELECT mes FROM cancel),
+base AS (SELECT m.mes, COALESCE(n.nuevos,0) AS nuevos, COALESCE(c.cancelados,0) AS cancelados,
+    COALESCE(c.voluntarias,0) AS voluntarias, COALESCE(c.mora,0) AS mora
+  FROM meses m LEFT JOIN nuevos n ON m.mes=n.mes LEFT JOIN cancel c ON m.mes=c.mes),
+calc AS (SELECT mes, nuevos, cancelados, voluntarias, mora,
+    SUM(nuevos) OVER (ORDER BY mes ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cum_nuevos,
+    COALESCE(SUM(cancelados) OVER (ORDER BY mes ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS cum_cancel_prev
+  FROM base)
+SELECT mes, nuevos, cancelados, voluntarias, mora, 0 AS suspendidos, 0 AS acum_suspendidos,
+  (cum_nuevos - cum_cancel_prev) AS activos,
+  (cum_nuevos - cum_cancel_prev) AS activos_netos,
+  ROUND(cancelados * 100.0 / NULLIF(cum_nuevos - cum_cancel_prev, 0), 2) AS churn,
+  ROUND(cancelados * 100.0 / NULLIF(cum_nuevos - cum_cancel_prev, 0), 2) AS churn_neto
+FROM calc ORDER BY mes;`;
+      const c2 = getClient(); await c2.connect();
+      const [r1, r2, r3, r4, r5, r6, r7] = await Promise.all([
         client.query(`
 SELECT TO_CHAR(DATE_TRUNC('month', MIN(o.fecha_cierre)), 'YYYY-MM') AS mes, COUNT(DISTINCT o.student_id) AS nuevos_clientes
 FROM salesforce.tabla_core_oportunidades o
@@ -594,8 +621,10 @@ agrupado AS (
 ),
 sorted AS (SELECT rango_vida, tipo_cancelacion, cantidad, avg_meses, CASE rango_vida WHEN 'Mes 1' THEN 1 WHEN 'Mes 2-3' THEN 2 WHEN 'Mes 4-6' THEN 3 WHEN 'Mes 7-12' THEN 4 ELSE 5 END AS orden FROM agrupado)
 SELECT rango_vida, tipo_cancelacion, cantidad, avg_meses FROM sorted ORDER BY orden, tipo_cancelacion;`),
+        c2.query(QUERY_FLUJO),
       ]);
-      return { nuevos: r1.rows, cancelaciones: r2.rows, tasaChurn: r3.rows, tiempoVida: r6.rows, motivos: r4.rows, churnPais: r5.rows };
+      await c2.end();
+      return { nuevos: r1.rows, cancelaciones: r2.rows, tasaChurn: r3.rows, tiempoVida: r6.rows, motivos: r4.rows, churnPais: r5.rows, flujo: r7.rows };
     },
   },
 
