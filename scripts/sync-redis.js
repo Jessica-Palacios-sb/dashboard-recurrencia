@@ -499,7 +499,7 @@ GROUP BY mes_cancel, mes_inicio, tipo_cancelacion, tipo_pago, pais_agrupado, mes
         client.query(`
 SELECT TO_CHAR(DATE_TRUNC('month', fecha_cierre), 'YYYY-MM') AS mes,
   CASE WHEN pais_agrupado IN ('México','Mexico') THEN 'México' WHEN pais_agrupado = 'Colombia' THEN 'Colombia' WHEN pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos' ELSE 'Otros' END AS pais_agrupado,
-  CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago, tv AS tipo_venta,
+  CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago,
   COUNT(DISTINCT student_id) AS nuevos_clientes
 FROM (
   SELECT o.student_id, o.fecha_cierre, o.tipo_pago, e.pais_agrupado,
@@ -676,8 +676,7 @@ invoice AS (
     ROW_NUMBER() OVER(PARTITION BY i.id_oportunidad ORDER BY i.due_date DESC) AS ultima_invoice_factura,
     i.fecha_pago, i.due_date, i.payment_amount_usd, i.estado, i.open_balance, i.tipo_cambio, i.total_amount_usd,
     CASE WHEN o.pais_lead IN ('Colombia','México','Estados Unidos') THEN o.pais_lead ELSE 'Otros' END pais,
-    o.tiempo_meses_estudio - CAST(i.numero_invoice_factura AS int) AS diferencia,
-    o.tipo_venta AS tventa
+    o.tiempo_meses_estudio - CAST(i.numero_invoice_factura AS int) AS diferencia
   FROM salesforce.tabla_core_invoices_facturas AS i
   INNER JOIN oportunidades AS o ON i.id_oportunidad = o.id_oportunidad
   WHERE i.invoice_factura = 'invoice'
@@ -730,7 +729,7 @@ casos_chargeback AS (
   FROM salesforce.tabla_core_casos WHERE status = 'Cancelado' AND id_registro_caso = '012UH000001iGJpYAM'
 ),
 detalle AS (
-  SELECT i.*, i.tipo_venta AS tv,
+  SELECT i.*,
     CASE WHEN i.tipo_pago = 'Contado' AND i.ultima_invoice_factura = 1 THEN round(i.monto_recurrente / i.tipo_cambio, 2)
       WHEN i.tipo_pago = 'Cuotas' AND i.ultima_invoice_factura = 1 THEN round(i.importe - i.payment_usd, 2)
       ELSE NULL END AS cash_sin_pagar,
@@ -767,7 +766,7 @@ detalle AS (
 )`;
       const QUERY = `${DETALLE}
 , funnel AS (
-  SELECT 'funnel' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago, tv AS tipo_venta,
+  SELECT 'funnel' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago, tipo_venta,
     CASE WHEN Up = 1 THEN 'Upgrade' WHEN tipo_cancelacion = 'Cancelación por mora' THEN 'Por mora'
       WHEN tipo_cancelacion = 'Cancelación por chargeback' THEN 'Chargeback'
       WHEN tipo_cancelacion = 'Cancelación voluntaria' THEN 'Voluntaria'
@@ -776,12 +775,12 @@ detalle AS (
   FROM detalle WHERE ultima_invoice_factura = 1 GROUP BY 2,3,4,5,6,7
 ),
 cohorte AS (
-  SELECT 'cohorte' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago, tv AS tipo_venta,
+  SELECT 'cohorte' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago, tipo_venta,
     TO_CHAR(fecha_cierre, 'YYYY-MM') AS k1, TO_CHAR(due_date, 'YYYY-MM') AS k2, COUNT(*) AS n, NULL AS cash
   FROM detalle WHERE fecha_cierre IS NOT NULL AND due_date IS NOT NULL GROUP BY 2,3,4,5,6,7
 ),
 pagos AS (
-  SELECT 'pagos' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago, tv AS tipo_venta,
+  SELECT 'pagos' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago, tipo_venta,
     TO_CHAR(fecha_cierre, 'YYYY-MM') AS k1, CAST(numero_invoice_factura AS varchar) AS k2,
     SUM(CASE WHEN payment_amount_usd > 0 THEN 1 ELSE 0 END) AS n,
     ROUND(SUM(COALESCE(payment_amount_usd, 0))::numeric, 0) AS cash
@@ -791,7 +790,7 @@ SELECT * FROM funnel WHERE k1 IS NOT NULL UNION ALL SELECT * FROM cohorte UNION 
       // Resumen por cohorte (mes de cierre): sales, facturas, importe, meta a hoy, total pagado.
       const QUERY_RESUMEN = `${DETALLE}
 SELECT pais, tipo_cliente,
-  CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago, tv AS tipo_venta,
+  CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago, tipo_venta,
   TO_CHAR(fecha_cierre, 'YYYY-MM') AS cohorte,
   SUM(CASE WHEN numero_invoice_factura = 1 THEN 1 ELSE 0 END) AS sales,
   SUM(CASE WHEN ultima_invoice_factura = 1 AND tipo_pago = 'Cuotas' THEN nc
