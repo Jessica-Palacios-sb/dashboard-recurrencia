@@ -542,7 +542,7 @@ base AS (SELECT m.mes, COALESCE(n.nuevos,0) AS nuevos, COALESCE(c.cancelados,0) 
     COALESCE(c.voluntarias,0) AS voluntarias, COALESCE(c.mora,0) AS mora
   FROM meses m LEFT JOIN nuevos n ON m.mes=n.mes LEFT JOIN cancel c ON m.mes=c.mes),
 calc AS (SELECT mes, nuevos, cancelados, voluntarias, mora,
-    SUM(nuevos) OVER (ORDER BY mes) AS cum_nuevos,
+    SUM(nuevos) OVER (ORDER BY mes ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cum_nuevos,
     COALESCE(SUM(cancelados) OVER (ORDER BY mes ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS cum_cancel_prev
   FROM base)
 SELECT mes, nuevos, cancelados, voluntarias, mora, 0 AS suspendidos, 0 AS acum_suspendidos,

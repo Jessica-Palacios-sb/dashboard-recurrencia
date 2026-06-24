@@ -401,7 +401,7 @@ base AS (
 ),
 calc AS (
   SELECT mes, nuevos, cancelados, voluntarias, mora,
-    SUM(nuevos) OVER (ORDER BY mes) AS cum_nuevos,
+    SUM(nuevos) OVER (ORDER BY mes ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cum_nuevos,
     COALESCE(SUM(cancelados) OVER (ORDER BY mes ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS cum_cancel_prev
   FROM base
 )
