@@ -2914,10 +2914,12 @@ function FacturacionTab({data}){
   const [pais,setPais]=useState('Todos');
   const [tipoCli,setTipoCli]=useState('Todos');
   const [tipoPago,setTipoPago]=useState('Todos');
+  const [tipoVenta,setTipoVenta]=useState('Todos');
   const [modo,setModo]=useState('num');
   const [colap,setColap]=useState({up:false,canc:false,rec:false});
   const [selCohorte,setSelCohorte]=useState(null);
   const [expRows,setExpRows]=useState({});
+  const [modoPagos,setModoPagos]=useState('num');
   const togglePais=v=>setPais(p=>p===v?'Todos':v);
   const toggleTipoCli=v=>setTipoCli(p=>p===v?'Todos':v);
   const toggleCohorte=v=>setSelCohorte(p=>p===v?null:v);
@@ -2926,8 +2928,9 @@ function FacturacionTab({data}){
   const paises=['Todos',...[...new Set(funnel.map(r=>r.pais))].filter(Boolean).sort()];
   const tipos=['Todos',...[...new Set(funnel.map(r=>r.tipo_cliente))].filter(Boolean).sort()];
   const pagos=['Todos','Recurrencia','Cuotas'];
+  const ventas=['Todos',...[...new Set(funnel.map(r=>r.tipo_venta))].filter(Boolean).sort()];
 
-  const matchFiltros=r=>(pais==='Todos'||r.pais===pais)&&(tipoCli==='Todos'||r.tipo_cliente===tipoCli)&&(tipoPago==='Todos'||r.tipo_pago===tipoPago)&&(!selCohorte||r.cohorte===selCohorte);
+  const matchFiltros=r=>(pais==='Todos'||r.pais===pais)&&(tipoCli==='Todos'||r.tipo_cliente===tipoCli)&&(tipoPago==='Todos'||r.tipo_pago===tipoPago)&&(tipoVenta==='Todos'||r.tipo_venta===tipoVenta)&&(!selCohorte||r.cohorte===selCohorte);
   const fF=funnel.filter(matchFiltros);
   const fC=cohorte.filter(matchFiltros);
 
@@ -2947,6 +2950,15 @@ function FacturacionTab({data}){
   const cols=[...new Set(fC.map(r=>r.mes_vencimiento))].filter(m=>m>=minCoh).sort();
   const cell={}; fC.forEach(r=>{ if(!cell[r.cohorte])cell[r.cohorte]={}; cell[r.cohorte][r.mes_vencimiento]=(cell[r.cohorte][r.mes_vencimiento]||0)+ +r.invoices; });
   const cohColor=(v,m0)=>{ const p=m0>0?v/m0:0; if(p>=0.8)return '#dcfce7'; if(p>=0.6)return '#fef9c3'; if(p>=0.4)return '#fee2e2'; return '#fecaca'; };
+
+  // Tabla pagos: facturas pagas / cash por cohorte × numero_invoice_factura
+  const fP=(data.pagos||[]).filter(matchFiltros);
+  const pagosCell={};
+  fP.forEach(r=>{ if(!pagosCell[r.cohorte])pagosCell[r.cohorte]={}; if(!pagosCell[r.cohorte][r.numero])pagosCell[r.cohorte][r.numero]={f:0,c:0}; pagosCell[r.cohorte][r.numero].f+=(+r.facturas||0); pagosCell[r.cohorte][r.numero].c+=(+r.cash||0); });
+  const pagosCohortes=[...new Set(fP.map(r=>r.cohorte))].sort();
+  const showPagosCoh=pagosCohortes.slice(-12);
+  const numerosSet=new Set(); showPagosCoh.forEach(co=>Object.keys(pagosCell[co]||{}).forEach(n=>numerosSet.add(+n)));
+  const numeros=[...numerosSet].sort((a,b)=>a-b);
 
   const byTipo={}; fF.forEach(r=>{ if(!byTipo[r.tipo_cliente])byTipo[r.tipo_cliente]={}; byTipo[r.tipo_cliente][r.razon]=(byTipo[r.tipo_cliente][r.razon]||0)+ +r.oportunidades; });
   const tipoRows=Object.entries(byTipo).map(([k,v])=>({tipo:k,vals:v,total:Object.values(v).reduce((a,b)=>a+b,0)})).sort((a,b)=>b.total-a.total).slice(0,8);
@@ -3008,11 +3020,11 @@ function FacturacionTab({data}){
   );
 
   const chip=(label,onClear)=><span style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:11.5,fontWeight:600,padding:'4px 10px',borderRadius:20,background:'#fffbe6',border:'1px solid #ffe9a8',color:'#92700a'}}>{label}<span onClick={onClear} style={{cursor:'pointer',color:'#b45454',fontWeight:700}}>✕</span></span>;
-  const hayFiltros = pais!=='Todos'||tipoCli!=='Todos'||tipoPago!=='Todos'||selCohorte;
+  const hayFiltros = pais!=='Todos'||tipoCli!=='Todos'||tipoPago!=='Todos'||tipoVenta!=='Todos'||selCohorte;
 
   return(<>
     <div style={{display:'flex',gap:14,flexWrap:'wrap',marginBottom:hayFiltros?10:16,alignItems:'center'}}>
-      {sel(pais,setPais,paises,'País:')}{sel(tipoCli,setTipoCli,tipos,'Tipo cliente:')}{sel(tipoPago,setTipoPago,pagos,'Tipo pago:')}
+      {sel(pais,setPais,paises,'País:')}{sel(tipoCli,setTipoCli,tipos,'Tipo cliente:')}{sel(tipoPago,setTipoPago,pagos,'Tipo pago:')}{sel(tipoVenta,setTipoVenta,ventas,'Tipo venta:')}
       <span style={{fontSize:11,color:'#9ca3af'}}>· clic en cohortes, países o barras para filtrar la hoja</span>
     </div>
     {hayFiltros&&(
@@ -3021,8 +3033,9 @@ function FacturacionTab({data}){
       {pais!=='Todos'&&chip('País: '+pais,()=>setPais('Todos'))}
       {tipoCli!=='Todos'&&chip('Cliente: '+tipoCli,()=>setTipoCli('Todos'))}
       {tipoPago!=='Todos'&&chip('Pago: '+tipoPago,()=>setTipoPago('Todos'))}
+      {tipoVenta!=='Todos'&&chip('Venta: '+tipoVenta,()=>setTipoVenta('Todos'))}
       {selCohorte&&chip('Cohorte: '+mesCorto(selCohorte),()=>setSelCohorte(null))}
-      <span onClick={()=>{setPais('Todos');setTipoCli('Todos');setTipoPago('Todos');setSelCohorte(null);}} style={{fontSize:11,color:'#6366f1',cursor:'pointer',marginLeft:4}}>Limpiar todo</span>
+      <span onClick={()=>{setPais('Todos');setTipoCli('Todos');setTipoPago('Todos');setTipoVenta('Todos');setSelCohorte(null);}} style={{fontSize:11,color:'#6366f1',cursor:'pointer',marginLeft:4}}>Limpiar todo</span>
     </div>
     )}
 
@@ -3070,6 +3083,36 @@ function FacturacionTab({data}){
                 <td onClick={()=>toggleCohorte(co)} title="Filtrar la hoja por esta cohorte" style={{color:selCohorte===co?'#a07000':'#555',fontWeight:600,whiteSpace:'nowrap',paddingRight:8,fontSize:11,cursor:'pointer',textDecoration:selCohorte===co?'underline':'none'}}>{mesCorto(co)}</td>
                 {cols.map(c=>{ const v=(cell[co]||{})[c]; if(c<co||v==null)return <td key={c}></td>;
                   return <td key={c} style={{textAlign:'center',padding:'7px 6px',borderRadius:5,background:cohColor(v,m0),fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap'}}>{modo==='pct'?(m0>0?Math.round(v/m0*100)+'%':'—'):fmt(v)}</td>; })}
+              </tr>
+            );})}
+          </tbody>
+        </table>
+      </div>
+      )}
+    </section>
+
+    <section className="chart-section">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:2,flexWrap:'wrap',gap:8}}>
+        <SectionTitle>Facturas pagas por cohorte × nº de invoice</SectionTitle>
+        <div className="gran-selector">
+          <button className={`gran-btn${modoPagos==='num'?' active':''}`} onClick={()=>setModoPagos('num')}>#</button>
+          <button className={`gran-btn${modoPagos==='cash'?' active':''}`} onClick={()=>setModoPagos('cash')}>$</button>
+          <button className={`gran-btn${modoPagos==='pct'?' active':''}`} onClick={()=>setModoPagos('pct')}>% vs inicio</button>
+        </div>
+      </div>
+      <p style={{margin:'-2px 0 14px',fontSize:12,color:'#9ca3af'}}>Filas = mes de cierre · columnas = nº de invoice. <b>#</b> facturas pagas (pago &gt; 0) · <b>$</b> cash (suma payment) · <b>%</b> vs la invoice 1.</p>
+      {showPagosCoh.length===0 ? <div style={{fontSize:13,color:'#9ca3af',padding:'12px 0'}}>Sin datos para el filtro.</div> : (
+      <div style={{overflowX:'auto'}}>
+        <table style={{borderCollapse:'separate',borderSpacing:3,fontSize:11}}>
+          <thead><tr><th></th>{numeros.map(n=><th key={n} style={{fontSize:10,color:'#888',fontWeight:600,padding:'3px 6px',whiteSpace:'nowrap'}}>Inv {n}</th>)}</tr></thead>
+          <tbody>
+            {showPagosCoh.map(co=>{ const m0=(pagosCell[co]||{})[1]||{f:0,c:0}; return (
+              <tr key={co}>
+                <td onClick={()=>toggleCohorte(co)} title="Filtrar la hoja por esta cohorte" style={{color:selCohorte===co?'#a07000':'#555',fontWeight:600,whiteSpace:'nowrap',paddingRight:8,fontSize:11,cursor:'pointer',textDecoration:selCohorte===co?'underline':'none'}}>{mesCorto(co)}</td>
+                {numeros.map(n=>{ const cv=(pagosCell[co]||{})[n]; if(!cv)return <td key={n}></td>;
+                  const ratio = modoPagos==='cash' ? (m0.c>0?cv.c/m0.c:0) : (m0.f>0?cv.f/m0.f:0);
+                  const txt = modoPagos==='cash' ? fmtUSD(cv.c) : modoPagos==='pct' ? (m0.f>0?Math.round(cv.f/m0.f*100)+'%':'—') : fmt(cv.f);
+                  return <td key={n} style={{textAlign:'center',padding:'7px 6px',borderRadius:5,background:cohColor(ratio,1),fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap'}}>{txt}</td>; })}
               </tr>
             );})}
           </tbody>
@@ -3294,10 +3337,10 @@ function App({authUser, onLogout}){
     }
     if(activeTab==='Facturación' && !facturacion && !facturacionLoading){
       setFacturacionLoading(true);
-      fetch('/api/facturacion').then(r=>r.json()).then(({funnel,cohorte,resumen,error})=>{
+      fetch('/api/facturacion').then(r=>r.json()).then(({funnel,cohorte,resumen,pagos,error})=>{
         if(error)throw new Error(error);
-        setFacturacion({funnel:funnel||[], cohorte:cohorte||[], resumen:resumen||[]});
-      }).catch(()=>setFacturacion({funnel:[],cohorte:[],resumen:[]})).finally(()=>setFacturacionLoading(false));
+        setFacturacion({funnel:funnel||[], cohorte:cohorte||[], resumen:resumen||[], pagos:pagos||[]});
+      }).catch(()=>setFacturacion({funnel:[],cohorte:[],resumen:[],pagos:[]})).finally(()=>setFacturacionLoading(false));
     }
 
   },[activeTab,cancelaciones,churn,facturacion,facturacionLoading]);
