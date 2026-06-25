@@ -459,13 +459,15 @@ function ChurnTab({data}){
 
   // Tabla mensual de flujo de suscriptores (nuevos / cancelados / activos / churn)
   const mesLabel = m => { try { return new Date(m+'-01T00:00:00').toLocaleDateString('es',{month:'short',year:'numeric'}).replace('.',''); } catch { return m; } };
-  const tablaChurn = tasaData.map((td,i)=>{
-    const m=td.mes, cm=cancelMes[m]||{};
-    const prev=i>0?+tasaData[i-1].tasa:null;
-    const dir=prev==null?null:(+td.tasa>prev+0.05?'up':+td.tasa<prev-0.05?'down':'flat');
-    return {mes:m, nuevos:nuevosMes[m]?.nuevos||0, cancelados:+td.cancelaciones||cm.total||0,
-      voluntarias:cm['Voluntaria']||0, mora:cm['Por mora']||0, activos:+td.clientes||0,
-      churn:+td.tasa, dir, suspendidos:0, activosNetos:+td.clientes||0, churnNeto:+td.tasa};
+  const hoyMesChurn = new Date().toISOString().slice(0,7);
+  const flujoRows = (data.flujo||[]).filter(r=>r.mes && r.mes<=hoyMesChurn && isFiltered(r.mes)).sort((a,b)=>a.mes.localeCompare(b.mes));
+  const tablaChurn = flujoRows.map((r,i)=>{
+    const prev=i>0?+flujoRows[i-1].churn:null;
+    const dir=prev==null?null:(+r.churn>prev+0.05?'up':+r.churn<prev-0.05?'down':'flat');
+    return {mes:r.mes, nuevos:+r.nuevos||0, cancelados:+r.cancelados||0, voluntarias:+r.voluntarias||0,
+      mora:+r.mora||0, activos:+r.activos||0, churn:+r.churn||0, dir,
+      suspendidos:+r.suspendidos||0, acumSusp:+r.acum_suspendidos||0,
+      activosNetos:+r.activos_netos||0, churnNeto:+r.churn_neto||0};
   });
 
   // Tiempo de vida — agrupar por rango
@@ -605,7 +607,7 @@ function ChurnTab({data}){
                     {td2(fmt(r.activos),{fontWeight:600,color:'#111'})}
                     {td2(churnTxt(r.churn))}
                     {td2(fmt(r.suspendidos),{color:'#9ca3af'})}
-                    {td2('0',{color:'#9ca3af'})}
+                    {td2(fmt(r.acumSusp),{color:'#9ca3af'})}
                     {td2(fmt(r.activosNetos),{fontWeight:600,color:'#111'})}
                     {td2(churnTxt(r.churnNeto))}
                   </tr>
