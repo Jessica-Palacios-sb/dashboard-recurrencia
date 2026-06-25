@@ -460,14 +460,21 @@ function ChurnTab({data}){
   // Tabla mensual de flujo de suscriptores (nuevos / cancelados / activos / churn)
   const mesLabel = m => { try { return new Date(m+'-01T00:00:00').toLocaleDateString('es',{month:'short',year:'numeric'}).replace('.',''); } catch { return m; } };
   const hoyMesChurn = new Date().toISOString().slice(0,7);
-  const flujoRows = (data.flujo||[]).filter(r=>r.mes && r.mes<=hoyMesChurn && isFiltered(r.mes)).sort((a,b)=>a.mes.localeCompare(b.mes));
+  const suspByMes={}; (data.suspendidos||[]).forEach(s=>{ suspByMes[s.mes]=(suspByMes[s.mes]||0)+(+s.suspendidos||0); });
+  const allFlujo = (data.flujo||[]).filter(r=>r.mes && r.mes<=hoyMesChurn).sort((a,b)=>a.mes.localeCompare(b.mes));
+  let acumSuspRun=0; const acumByMes={};
+  allFlujo.forEach(r=>{ acumSuspRun += (suspByMes[r.mes]||0); acumByMes[r.mes]=acumSuspRun; });
+  const flujoRows = allFlujo.filter(r=>isFiltered(r.mes));
   const tablaChurn = flujoRows.map((r,i)=>{
     const prev=i>0?+flujoRows[i-1].churn:null;
     const dir=prev==null?null:(+r.churn>prev+0.05?'up':+r.churn<prev-0.05?'down':'flat');
-    return {mes:r.mes, nuevos:+r.nuevos||0, cancelados:+r.cancelados||0, voluntarias:+r.voluntarias||0,
-      mora:+r.mora||0, activos:+r.activos||0, churn:+r.churn||0, dir,
-      suspendidos:+r.suspendidos||0, acumSusp:+r.acum_suspendidos||0,
-      activosNetos:+r.activos_netos||0, churnNeto:+r.churn_neto||0};
+    const susp=suspByMes[r.mes]||0, acumS=acumByMes[r.mes]||0;
+    const activos=+r.activos||0, cancelados=+r.cancelados||0;
+    const activosNetos=activos-acumS;
+    const churnNeto=activosNetos>0?+((cancelados*100/activosNetos).toFixed(2)):0;
+    return {mes:r.mes, nuevos:+r.nuevos||0, cancelados, voluntarias:+r.voluntarias||0,
+      mora:+r.mora||0, activos, churn:+r.churn||0, dir,
+      suspendidos:susp, acumSusp:acumS, activosNetos, churnNeto};
   });
 
   // Tiempo de vida — agrupar por rango

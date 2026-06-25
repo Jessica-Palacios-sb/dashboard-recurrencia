@@ -414,12 +414,11 @@ FROM calc
 ORDER BY mes;
 `;
 
-// Sondeo: valores reales de tipo_cancelacion (para validar el mapeo mora/voluntaria)
-const QUERY_TIPOS = `
-SELECT COALESCE(tipo_cancelacion,'(null)') AS tipo, COUNT(*) AS n
-FROM ${ESTADO_SUS} e WHERE estado_usuario = 'Inactivo'
-GROUP BY 1 ORDER BY n DESC;
-`;
+// Suspendidos por mes (sub_estado 'Suspendido' + estado 'Activo') con fecha desde account_history
+const QUERY_SUSP = `SELECT TO_CHAR(DATE_TRUNC('month', h.fecha_susp),'YYYY-MM') AS mes, COUNT(*) AS suspendidos
+FROM (SELECT student_id FROM salesforce.tabla_intermedia_estado_clientes WHERE tipo_oportunidad='Suscripciones' AND sub_estado_usuario='Suspendido' AND estado_usuario='Activo') es
+JOIN (SELECT accountid AS student_id, MAX(CAST(createddate AS date)) AS fecha_susp FROM "salesforce-database".account_history WHERE newvalue='Suspendido' AND field='SBEEMO_LS_SUB_ESTADO_USUARIO__c' GROUP BY accountid) h ON es.student_id = h.student_id
+WHERE h.fecha_susp IS NOT NULL GROUP BY 1 ORDER BY 1;`;
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -437,7 +436,7 @@ module.exports = async (req, res) => {
   const client = getClient();
   try {
     await client.connect();
-    const [r1, r2, r3, r4, r5, r6, r7] = await Promise.all([
+    const [r1, r2, r3, r4, r5, r6, r7, r8] = await Promise.all([
       client.query(QUERY_NUEVOS),
       client.query(QUERY_CANCELACIONES),
       client.query(QUERY_TASA_CHURN),
@@ -445,6 +444,7 @@ module.exports = async (req, res) => {
       client.query(QUERY_CHURN_PAIS),
       client.query(QUERY_TIEMPO_VIDA),
       (async()=>{ const c=getClient(); await c.connect(); try { return await c.query(QUERY_FLUJO); } finally { await c.end(); } })(),
+      (async()=>{ const c=getClient(); await c.connect(); try { return await c.query(QUERY_SUSP); } catch(e){ console.error('susp:',e.message); return {rows:[]}; } finally { await c.end(); } })(),
     ]);
     const data = {
       nuevos:        r1.rows,
@@ -454,6 +454,7 @@ module.exports = async (req, res) => {
       motivos:       r4.rows,
       churnPais:     r5.rows,
       flujo:         r7.rows,
+      suspendidos:   r8.rows,
     };
     await redis.set(CACHE_KEY, JSON.stringify(data), { ex: CACHE_TTL });
     res.status(200).json(data);
