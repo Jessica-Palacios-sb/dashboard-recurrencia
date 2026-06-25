@@ -526,31 +526,27 @@ GROUP BY DATE_TRUNC('month', fecha_cierre), pais_agrupado, 3 ORDER BY mes;`),
   FROM salesforce.tabla_intermedia_estado_clientes WHERE tipo_oportunidad = 'Suscripciones' AND fecha_cierre >= '2023-08-01'
 )`;
       const QUERY_FLUJO = `
-WITH e AS ${ESTADO_SUS},
-nuevos AS (SELECT TO_CHAR(DATE_TRUNC('month', fecha_cierre),'YYYY-MM') AS mes, COUNT(*) AS nuevos FROM e WHERE fecha_cierre IS NOT NULL GROUP BY 1),
-cancel AS (SELECT TO_CHAR(DATE_TRUNC('month', fecha_cancelacion),'YYYY-MM') AS mes, COUNT(*) AS cancelados,
+WITH e AS (SELECT c.student_id, CAST(c.fecha_cierre AS date) AS fecha_cierre, c.estado_usuario, CAST(c.fecha_cancelacion AS date) AS fecha_cancelacion, c.tipo_cancelacion, c.canal_cancelacion,
+    COALESCE(NULLIF(TRIM(c.tipo_cliente),''),'(sin)') AS tipo_cliente,
+    CASE WHEN est.pais_agrupado IN ('México','Mexico') THEN 'México' WHEN est.pais_agrupado = 'Colombia' THEN 'Colombia' WHEN est.pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos' ELSE 'Otros' END AS pais
+  FROM salesforce.tabla_intermedia_estado_clientes c LEFT JOIN salesforce.tabla_core_estudiantes est ON c.student_id = est.student_id
+  WHERE c.tipo_oportunidad = 'Suscripciones' AND c.fecha_cierre >= '2023-08-01'),
+nuevos AS (SELECT TO_CHAR(DATE_TRUNC('month', fecha_cierre),'YYYY-MM') AS mes, pais, tipo_cliente, COUNT(*) AS nuevos FROM e WHERE fecha_cierre IS NOT NULL GROUP BY 1,2,3),
+cancel AS (SELECT TO_CHAR(DATE_TRUNC('month', fecha_cancelacion),'YYYY-MM') AS mes, pais, tipo_cliente, COUNT(*) AS cancelados,
     SUM(CASE WHEN COALESCE(canal_cancelacion,'') = 'Caso chargeback' THEN 1 ELSE 0 END) AS chargeback,
     SUM(CASE WHEN COALESCE(canal_cancelacion,'') <> 'Caso chargeback' AND LOWER(COALESCE(tipo_cancelacion,'')) LIKE '%mora%' THEN 1 ELSE 0 END) AS mora,
     SUM(CASE WHEN COALESCE(canal_cancelacion,'') <> 'Caso chargeback' AND LOWER(COALESCE(tipo_cancelacion,'')) NOT LIKE '%mora%' THEN 1 ELSE 0 END) AS voluntarias
-  FROM e WHERE estado_usuario = 'Inactivo' AND fecha_cancelacion IS NOT NULL GROUP BY 1),
-meses AS (SELECT mes FROM nuevos UNION SELECT mes FROM cancel),
-base AS (SELECT m.mes, COALESCE(n.nuevos,0) AS nuevos, COALESCE(c.cancelados,0) AS cancelados,
-    COALESCE(c.voluntarias,0) AS voluntarias, COALESCE(c.mora,0) AS mora, COALESCE(c.chargeback,0) AS chargeback
-  FROM meses m LEFT JOIN nuevos n ON m.mes=n.mes LEFT JOIN cancel c ON m.mes=c.mes),
-calc AS (SELECT mes, nuevos, cancelados, voluntarias, mora, chargeback,
-    SUM(nuevos) OVER (ORDER BY mes ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cum_nuevos,
-    COALESCE(SUM(cancelados) OVER (ORDER BY mes ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS cum_cancel_prev
-  FROM base)
-SELECT mes, nuevos, cancelados, voluntarias, mora, chargeback, 0 AS suspendidos, 0 AS acum_suspendidos,
-  (cum_nuevos - cum_cancel_prev) AS activos,
-  (cum_nuevos - cum_cancel_prev) AS activos_netos,
-  ROUND(cancelados * 100.0 / NULLIF(cum_nuevos - cum_cancel_prev, 0), 2) AS churn,
-  ROUND(cancelados * 100.0 / NULLIF(cum_nuevos - cum_cancel_prev, 0), 2) AS churn_neto
-FROM calc ORDER BY mes;`;
-      const QUERY_SUSP = `SELECT TO_CHAR(DATE_TRUNC('month', h.fecha_susp),'YYYY-MM') AS mes, COUNT(*) AS suspendidos
-FROM (SELECT student_id FROM salesforce.tabla_intermedia_estado_clientes WHERE tipo_oportunidad='Suscripciones' AND sub_estado_usuario='Suspendido' AND estado_usuario='Activo') es
+  FROM e WHERE estado_usuario = 'Inactivo' AND fecha_cancelacion IS NOT NULL GROUP BY 1,2,3)
+SELECT COALESCE(n.mes,c.mes) AS mes, COALESCE(n.pais,c.pais) AS pais, COALESCE(n.tipo_cliente,c.tipo_cliente) AS tipo_cliente,
+  COALESCE(n.nuevos,0) AS nuevos, COALESCE(c.cancelados,0) AS cancelados, COALESCE(c.chargeback,0) AS chargeback, COALESCE(c.mora,0) AS mora, COALESCE(c.voluntarias,0) AS voluntarias
+FROM nuevos n FULL OUTER JOIN cancel c ON n.mes=c.mes AND n.pais=c.pais AND n.tipo_cliente=c.tipo_cliente ORDER BY mes;`;
+      const QUERY_SUSP = `SELECT TO_CHAR(DATE_TRUNC('month', h.fecha_susp),'YYYY-MM') AS mes,
+  CASE WHEN est.pais_agrupado IN ('México','Mexico') THEN 'México' WHEN est.pais_agrupado = 'Colombia' THEN 'Colombia' WHEN est.pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos' ELSE 'Otros' END AS pais,
+  es.tipo_cliente, COUNT(*) AS suspendidos
+FROM (SELECT student_id, COALESCE(NULLIF(TRIM(tipo_cliente),''),'(sin)') AS tipo_cliente FROM salesforce.tabla_intermedia_estado_clientes WHERE tipo_oportunidad='Suscripciones' AND sub_estado_usuario='Suspendido' AND estado_usuario='Activo') es
 JOIN (SELECT accountid AS student_id, MAX(CAST(createddate AS date)) AS fecha_susp FROM "salesforce-database".account_history WHERE newvalue='Suspendido' AND field='SBEEMO_LS_SUB_ESTADO_USUARIO__c' GROUP BY accountid) h ON es.student_id = h.student_id
-WHERE h.fecha_susp IS NOT NULL GROUP BY 1 ORDER BY 1;`;
+LEFT JOIN salesforce.tabla_core_estudiantes est ON es.student_id = est.student_id
+WHERE h.fecha_susp IS NOT NULL GROUP BY 1, 2, 3 ORDER BY 1;`;
       const QUERY_PAIS_EC = `
 WITH e AS (SELECT c.student_id, c.estado_usuario, c.fecha_cancelacion, c.tipo_cancelacion,
     CASE WHEN est.pais_agrupado IN ('México','Mexico') THEN 'México' WHEN est.pais_agrupado = 'Colombia' THEN 'Colombia' WHEN est.pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos' ELSE 'Otros' END AS pais
@@ -565,14 +561,18 @@ SELECT b.pais AS pais_agrupado, b.clientes_totales, COALESCE(c.cancelaciones,0) 
   ROUND(COALESCE(c.cancelaciones,0) * 100.0 / NULLIF(b.clientes_totales,0), 2) AS tasa_churn_pct
 FROM base b LEFT JOIN cancel c ON b.pais = c.pais ORDER BY cancelaciones DESC;`;
       const QUERY_VIDA_EC = `
-WITH e AS (SELECT CAST(fecha_cierre AS date) AS fecha_cierre, CAST(fecha_cancelacion AS date) AS fecha_cancelacion, tipo_cancelacion, canal_cancelacion, estado_usuario
-  FROM salesforce.tabla_intermedia_estado_clientes WHERE tipo_oportunidad = 'Suscripciones' AND fecha_cierre >= '2023-08-01'),
-v AS (SELECT DATEDIFF('month', fecha_cierre, fecha_cancelacion) AS meses_vida,
+WITH e AS (SELECT c.student_id, CAST(c.fecha_cierre AS date) AS fecha_cierre, CAST(c.fecha_cancelacion AS date) AS fecha_cancelacion, c.tipo_cancelacion, c.canal_cancelacion, c.estado_usuario,
+    COALESCE(NULLIF(TRIM(c.tipo_cliente),''),'(sin)') AS tipo_cliente,
+    CASE WHEN est.pais_agrupado IN ('México','Mexico') THEN 'México' WHEN est.pais_agrupado = 'Colombia' THEN 'Colombia' WHEN est.pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos' ELSE 'Otros' END AS pais
+  FROM salesforce.tabla_intermedia_estado_clientes c LEFT JOIN salesforce.tabla_core_estudiantes est ON c.student_id = est.student_id
+  WHERE c.tipo_oportunidad = 'Suscripciones' AND c.fecha_cierre >= '2023-08-01'),
+v AS (SELECT TO_CHAR(DATE_TRUNC('month', fecha_cancelacion),'YYYY-MM') AS mes, pais, tipo_cliente, DATEDIFF('month', fecha_cierre, fecha_cancelacion) AS meses_vida,
     CASE WHEN COALESCE(canal_cancelacion,'') = 'Caso chargeback' THEN 'Chargeback' WHEN LOWER(COALESCE(tipo_cancelacion,'')) LIKE '%mora%' THEN 'Por mora' ELSE 'Voluntaria' END AS tipo_cancelacion
   FROM e WHERE estado_usuario = 'Inactivo' AND fecha_cancelacion IS NOT NULL AND fecha_cierre IS NOT NULL)
-SELECT CASE WHEN meses_vida <= 1 THEN 'Mes 1' WHEN meses_vida <= 3 THEN 'Mes 2-3' WHEN meses_vida <= 6 THEN 'Mes 4-6' WHEN meses_vida <= 12 THEN 'Mes 7-12' ELSE '+12 meses' END AS rango_vida,
-  tipo_cancelacion, COUNT(*) AS cantidad, ROUND(AVG(meses_vida)::numeric,1) AS avg_meses
-FROM v WHERE meses_vida >= 0 GROUP BY 1, 2;`;
+SELECT mes, pais, tipo_cliente,
+  CASE WHEN meses_vida <= 1 THEN 'Mes 1' WHEN meses_vida <= 3 THEN 'Mes 2-3' WHEN meses_vida <= 6 THEN 'Mes 4-6' WHEN meses_vida <= 12 THEN 'Mes 7-12' ELSE '+12 meses' END AS rango_vida,
+  tipo_cancelacion, COUNT(*) AS cantidad, SUM(meses_vida) AS suma_meses
+FROM v WHERE meses_vida >= 0 GROUP BY 1, 2, 3, 4, 5;`;
       const c2 = getClient(); await c2.connect();
       const [r1, r2, r3, r4, r5, r6, r7, r8] = await Promise.all([
         client.query(`

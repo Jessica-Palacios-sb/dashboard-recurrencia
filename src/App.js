@@ -402,6 +402,9 @@ function NavTab({tabs, active, onChange, badges={}}){
 function ChurnTab({data}){
   const [desde, setDesde] = useState(null);
   const [hasta, setHasta] = useState(null);
+  const [selPais, setSelPais] = useState('Todos');
+  const [selTP, setSelTP] = useState('Todos');
+  const [selTC, setSelTC] = useState('Todos');
 
   const fmt    = n => n==null?'—':Number(n).toLocaleString('es-CO',{minimumFractionDigits:0,maximumFractionDigits:0});
   const fmtUSD = n => n==null?'—':'$'+Number(n).toLocaleString('es-CO',{minimumFractionDigits:0,maximumFractionDigits:0});
@@ -419,49 +422,53 @@ function ChurnTab({data}){
     return true;
   };
 
-  // ── Fuente nueva (estado_clientes): nuevos/cancelados/activos/churn por mes ──
-  const flujoFilt = (data.flujo||[]).filter(r=>r.mes && isFiltered(r.mes)).sort((a,b)=>a.mes.localeCompare(b.mes));
+  // ── Fuente dimensional (estado_clientes): mes × país × tipo_cliente ──
+  const tipoPagoOf = tc => String(tc||'').toLowerCase().includes('cuotas') ? 'Cuotas' : 'Recurrencia';
+  const flujoRaw = data.flujo||[];
+  const paisOpts = ['Todos', ...Array.from(new Set(flujoRaw.map(r=>r.pais).filter(Boolean))).sort()];
+  const tcOpts   = ['Todos', ...Array.from(new Set(flujoRaw.map(r=>r.tipo_cliente).filter(Boolean))).sort()];
+  const tpOpts   = ['Todos','Cuotas','Recurrencia'];
+  const dimOk = r => (selPais==='Todos'||r.pais===selPais) && (selTC==='Todos'||r.tipo_cliente===selTC) && (selTP==='Todos'||tipoPagoOf(r.tipo_cliente)===selTP);
 
-  // Nuevos por mes
-  const nuevosMes = {};
-  flujoFilt.forEach(r=>{ nuevosMes[r.mes]={mes:r.mes,nuevos:+r.nuevos||0,revenue:0}; });
-
-  // Cancelaciones por mes y tipo (estado_clientes solo distingue mora/voluntaria)
-  const cancelMes = {};
-  flujoFilt.forEach(r=>{ cancelMes[r.mes]={mes:r.mes,'Por mora':+r.mora||0,'Voluntaria':+r.voluntarias||0,'Chargeback':+r.chargeback||0,'Desenrolada':0,total:+r.cancelados||0}; });
-
-  // Flujo combinado
-  const flujoData = flujoFilt.map(r=>({mes:r.mes, nuevos:+r.nuevos||0, cancelados:+r.cancelados||0, neto:(+r.nuevos||0)-(+r.cancelados||0)}));
-
-  // Tasa de churn por mes
-  const tasaData = flujoFilt.map(r=>({mes:r.mes, tasa:+r.churn||0, clientes:+r.activos||0, cancelaciones:+r.cancelados||0}));
-
-  // Cancelaciones apiladas por tipo y mes
-  const cancelStack = Object.values(cancelMes).sort((a,b) => a.mes.localeCompare(b.mes));
-
-  // Tabla mensual de flujo de suscriptores (nuevos / cancelados / activos / churn)
   const mesLabel = m => { try { return new Date(m+'-01T00:00:00').toLocaleDateString('es',{month:'short',year:'numeric'}).replace('.',''); } catch { return m; } };
-  const hoyMesChurn = new Date().toISOString().slice(0,7);
-  const suspByMes={}; (data.suspendidos||[]).forEach(s=>{ suspByMes[s.mes]=(suspByMes[s.mes]||0)+(+s.suspendidos||0); });
-  const allFlujo = (data.flujo||[]).filter(r=>r.mes && r.mes<=hoyMesChurn).sort((a,b)=>a.mes.localeCompare(b.mes));
-  let acumSuspRun=0; const acumByMes={};
-  allFlujo.forEach(r=>{ acumSuspRun += (suspByMes[r.mes]||0); acumByMes[r.mes]=acumSuspRun; });
-  const flujoRows = allFlujo.filter(r=>isFiltered(r.mes));
-  const tablaChurn = flujoRows.map((r,i)=>{
-    const prev=i>0?+flujoRows[i-1].churn:null;
-    const dir=prev==null?null:(+r.churn>prev+0.05?'up':+r.churn<prev-0.05?'down':'flat');
-    const susp=suspByMes[r.mes]||0, acumS=acumByMes[r.mes]||0;
-    const activos=+r.activos||0, cancelados=+r.cancelados||0;
-    const activosNetos=activos-acumS;
-    const churnNeto=activosNetos>0?+((cancelados*100/activosNetos).toFixed(2)):0;
-    return {mes:r.mes, nuevos:+r.nuevos||0, cancelados, voluntarias:(+r.voluntarias||0)+(+r.chargeback||0),
-      mora:+r.mora||0, activos, churn:+r.churn||0, dir,
-      suspendidos:susp, acumSusp:acumS, activosNetos, churnNeto};
+
+  // Serie mensual (dim-filtrada, rango completo) con balance corrido de activos
+  const aggM = {};
+  flujoRaw.filter(r=>r.mes && r.mes<=HOY_MES && dimOk(r)).forEach(r=>{
+    const m = aggM[r.mes] || (aggM[r.mes]={mes:r.mes,nuevos:0,cancelados:0,chargeback:0,mora:0,voluntarias:0});
+    m.nuevos+=+r.nuevos||0; m.cancelados+=+r.cancelados||0; m.chargeback+=+r.chargeback||0; m.mora+=+r.mora||0; m.voluntarias+=+r.voluntarias||0;
+  });
+  const suspM = {};
+  (data.suspendidos||[]).filter(s=>s.mes && dimOk(s)).forEach(s=>{ suspM[s.mes]=(suspM[s.mes]||0)+(+s.suspendidos||0); });
+  const serie = Object.values(aggM).sort((a,b)=>a.mes.localeCompare(b.mes));
+  let cumN=0, cumCprev=0, acumS=0;
+  serie.forEach(m=>{
+    cumN += m.nuevos; m.activos = cumN - cumCprev; cumCprev += m.cancelados;
+    m.churn = m.activos>0 ? +(m.cancelados*100/m.activos).toFixed(2) : 0;
+    m.suspendidos = suspM[m.mes]||0; acumS += m.suspendidos; m.acumSusp = acumS;
+    m.activosNetos = m.activos - acumS;
+    m.churnNeto = m.activosNetos>0 ? +(m.cancelados*100/m.activosNetos).toFixed(2) : 0;
+  });
+  const serieFilt = serie.filter(m=>isFiltered(m.mes));
+
+  // Derivados para charts
+  const nuevosMes = {}; serieFilt.forEach(m=>{ nuevosMes[m.mes]={mes:m.mes,nuevos:m.nuevos,revenue:0}; });
+  const cancelMes = {}; serieFilt.forEach(m=>{ cancelMes[m.mes]={mes:m.mes,'Por mora':m.mora,'Voluntaria':m.voluntarias,'Chargeback':m.chargeback,'Desenrolada':0,total:m.cancelados}; });
+  const flujoData = serieFilt.map(m=>({mes:m.mes, nuevos:m.nuevos, cancelados:m.cancelados, neto:m.nuevos-m.cancelados}));
+  const tasaData = serieFilt.map(m=>({mes:m.mes, tasa:m.churn, clientes:m.activos, cancelaciones:m.cancelados}));
+  const cancelStack = Object.values(cancelMes).sort((a,b)=>a.mes.localeCompare(b.mes));
+
+  // Tabla mensual
+  const tablaChurn = serieFilt.map((m,i)=>{
+    const prev=i>0?serieFilt[i-1].churn:null;
+    const dir=prev==null?null:(m.churn>prev+0.05?'up':m.churn<prev-0.05?'down':'flat');
+    return {mes:m.mes, nuevos:m.nuevos, cancelados:m.cancelados, voluntarias:m.voluntarias+m.chargeback, mora:m.mora,
+      activos:m.activos, churn:m.churn, dir, suspendidos:m.suspendidos, acumSusp:m.acumSusp, activosNetos:m.activosNetos, churnNeto:m.churnNeto};
   });
 
   // Tiempo de vida — agrupar por rango
   const vidaRangos = {};
-  (data.tiempoVida||[]).forEach(r=>{
+  (data.tiempoVida||[]).filter(r=>dimOk(r) && (!r.mes || isFiltered(r.mes))).forEach(r=>{
     if(!vidaRangos[r.rango_vida])vidaRangos[r.rango_vida]={rango:r.rango_vida,total:0,'Por mora':0,'Voluntaria':0,'Chargeback':0,'Otro':0};
     vidaRangos[r.rango_vida].total += +r.cantidad;
     if(vidaRangos[r.rango_vida][r.tipo_cancelacion]!==undefined) vidaRangos[r.rango_vida][r.tipo_cancelacion] += +r.cantidad;
@@ -480,31 +487,38 @@ function ChurnTab({data}){
   });
   const motivosData = Object.values(motivosAgg).sort((a,b)=>b.casos-a.casos).slice(0,10);
 
-  // Churn por país
-  const paisData = (data.churnPais||[])
-    .filter(r=>r.pais_agrupado)
-    .sort((a,b)=>+b.cancelaciones - +a.cancelaciones)
-    .slice(0,10)
-    .map(r=>({
-      pais: r.pais_agrupado,
-      clientes: +r.clientes_totales,
-      cancelaciones: +r.cancelaciones,
-      por_mora: +r.por_mora,
-      voluntaria: +r.voluntaria,
-      tasa: +r.tasa_churn_pct,
-    }));
+  // Churn por país — derivado del flujo dim-filtrado (Σnuevos = cohorte, Σcancelados)
+  const paisAgg = {};
+  flujoRaw.filter(r=>r.mes && dimOk(r) && isFiltered(r.mes)).forEach(r=>{
+    const p = paisAgg[r.pais] || (paisAgg[r.pais]={pais:r.pais,clientes:0,cancelaciones:0,por_mora:0,voluntaria:0});
+    p.clientes += +r.nuevos||0; p.cancelaciones += +r.cancelados||0;
+    p.por_mora += +r.mora||0; p.voluntaria += (+r.voluntarias||0)+(+r.chargeback||0);
+  });
+  const paisData = Object.values(paisAgg)
+    .map(p=>({pais:p.pais, clientes:p.clientes, cancelaciones:p.cancelaciones, por_mora:p.por_mora, voluntaria:p.voluntaria,
+      tasa: p.clientes>0 ? +(p.cancelaciones*100/p.clientes).toFixed(1) : 0}))
+    .sort((a,b)=>b.cancelaciones-a.cancelaciones).slice(0,10);
 
   // KPIs globales
   const totalNuevos = Object.values(nuevosMes).reduce((s,d)=>s+d.nuevos,0);
   const totalCancel = Object.values(cancelMes).reduce((s,d)=>s+d.total,0);
   const avgTasa = tasaData.length>0 ? tasaData.reduce((s,d)=>s+d.tasa,0)/tasaData.length : 0;
   const lastTasa = tasaData.length>0 ? tasaData[tasaData.length-1] : null;
-  const totalPorMora = flujoFilt.reduce((s,r)=>s+(+r.mora||0),0);
+  const totalPorMora = serieFilt.reduce((s,m)=>s+m.mora,0);
 
   return(
     <>
-      <div style={{display:'flex', alignItems:'center', gap:12, marginBottom:20}}>
+      <div style={{display:'flex', alignItems:'center', gap:12, marginBottom:20, flexWrap:'wrap'}}>
         <MonthRangePicker value={{from:desde, to:hasta}} onChange={({from,to})=>{setDesde(from); setHasta(to);}}/>
+        {[['País',selPais,setSelPais,paisOpts],['Tipo pago',selTP,setSelTP,tpOpts],['Tipo cliente',selTC,setSelTC,tcOpts]].map(([lbl,val,setter,opts])=>(
+          <label key={lbl} style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#6b7280'}}>
+            {lbl}:
+            <select value={val} onChange={e=>setter(e.target.value)} style={{fontFamily:'inherit',fontSize:12,padding:'6px 8px',borderRadius:8,border:'1px solid #e5e7eb',background:'#fff',color:'#111',maxWidth:190}}>
+              {opts.map(o=><option key={o} value={o}>{o}</option>)}
+            </select>
+          </label>
+        ))}
+        {(selPais!=='Todos'||selTP!=='Todos'||selTC!=='Todos') && <button onClick={()=>{setSelPais('Todos');setSelTP('Todos');setSelTC('Todos');}} style={{fontFamily:'inherit',fontSize:12,padding:'6px 10px',borderRadius:8,border:'1px solid #e5e7eb',background:'#f9fafb',color:'#6b7280',cursor:'pointer'}}>Limpiar</button>}
       </div>
 
       {/* KPIs */}
