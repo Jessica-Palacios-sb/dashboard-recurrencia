@@ -419,43 +419,25 @@ function ChurnTab({data}){
     return true;
   };
 
-  // Nuevos por mes (total)
-  const nuevosMes = {};
-  (data.nuevos||[]).forEach(r=>{
-    if(!isFiltered(r.mes)) return;
-    if(!nuevosMes[r.mes])nuevosMes[r.mes]={mes:r.mes,nuevos:0,revenue:0};
-    nuevosMes[r.mes].nuevos += +r.nuevos_clientes;
-    nuevosMes[r.mes].revenue += +r.revenue;
-  });
+  // ── Fuente nueva (estado_clientes): nuevos/cancelados/activos/churn por mes ──
+  const flujoFilt = (data.flujo||[]).filter(r=>r.mes && isFiltered(r.mes)).sort((a,b)=>a.mes.localeCompare(b.mes));
 
-  // Cancelaciones por mes (total)
+  // Nuevos por mes
+  const nuevosMes = {};
+  flujoFilt.forEach(r=>{ nuevosMes[r.mes]={mes:r.mes,nuevos:+r.nuevos||0,revenue:0}; });
+
+  // Cancelaciones por mes y tipo (estado_clientes solo distingue mora/voluntaria)
   const cancelMes = {};
-  (data.cancelaciones||[]).forEach(r=>{
-    if(!isFiltered(r.mes)) return;
-    if(!cancelMes[r.mes])cancelMes[r.mes]={mes:r.mes,'Por mora':0,'Voluntaria':0,'Chargeback':0,'Desenrolada':0,total:0};
-    const n = +r.cancelaciones;
-    cancelMes[r.mes].total += n;
-    if(cancelMes[r.mes][r.tipo_cancelacion]!==undefined) cancelMes[r.mes][r.tipo_cancelacion] += n;
-  });
+  flujoFilt.forEach(r=>{ cancelMes[r.mes]={mes:r.mes,'Por mora':+r.mora||0,'Voluntaria':+r.voluntarias||0,'Chargeback':+r.chargeback||0,'Desenrolada':0,total:+r.cancelados||0}; });
 
   // Flujo combinado
-  const mesesSet = new Set([...Object.keys(nuevosMes), ...Object.keys(cancelMes)]);
-  const flujoData = Array.from(mesesSet).sort()
-    .map(m => ({
-      mes: m,
-      nuevos:     nuevosMes[m]?.nuevos || 0,
-      cancelados: cancelMes[m]?.total  || 0,
-      neto:       (nuevosMes[m]?.nuevos||0) - (cancelMes[m]?.total||0),
-    }));
+  const flujoData = flujoFilt.map(r=>({mes:r.mes, nuevos:+r.nuevos||0, cancelados:+r.cancelados||0, neto:(+r.nuevos||0)-(+r.cancelados||0)}));
 
   // Tasa de churn por mes
-  const tasaData = (data.tasaChurn||[])
-    .filter(r => isFiltered(r.mes))
-    .map(r => ({mes:r.mes, tasa:+r.tasa_churn, clientes:+r.clientes_activos, cancelaciones:+r.cancelaciones}));
+  const tasaData = flujoFilt.map(r=>({mes:r.mes, tasa:+r.churn||0, clientes:+r.activos||0, cancelaciones:+r.cancelados||0}));
 
   // Cancelaciones apiladas por tipo y mes
-  const cancelStack = Object.values(cancelMes)
-    .sort((a,b) => a.mes.localeCompare(b.mes));
+  const cancelStack = Object.values(cancelMes).sort((a,b) => a.mes.localeCompare(b.mes));
 
   // Tabla mensual de flujo de suscriptores (nuevos / cancelados / activos / churn)
   const mesLabel = m => { try { return new Date(m+'-01T00:00:00').toLocaleDateString('es',{month:'short',year:'numeric'}).replace('.',''); } catch { return m; } };
@@ -472,7 +454,7 @@ function ChurnTab({data}){
     const activos=+r.activos||0, cancelados=+r.cancelados||0;
     const activosNetos=activos-acumS;
     const churnNeto=activosNetos>0?+((cancelados*100/activosNetos).toFixed(2)):0;
-    return {mes:r.mes, nuevos:+r.nuevos||0, cancelados, voluntarias:+r.voluntarias||0,
+    return {mes:r.mes, nuevos:+r.nuevos||0, cancelados, voluntarias:(+r.voluntarias||0)+(+r.chargeback||0),
       mora:+r.mora||0, activos, churn:+r.churn||0, dir,
       suspendidos:susp, acumSusp:acumS, activosNetos, churnNeto};
   });
