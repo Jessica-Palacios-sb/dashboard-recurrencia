@@ -421,6 +421,45 @@ FROM (SELECT student_id FROM salesforce.tabla_intermedia_estado_clientes WHERE t
 JOIN (SELECT accountid AS student_id, MAX(CAST(createddate AS date)) AS fecha_susp FROM "salesforce-database".account_history WHERE newvalue='Suspendido' AND field='SBEEMO_LS_SUB_ESTADO_USUARIO__c' GROUP BY accountid) h ON es.student_id = h.student_id
 WHERE h.fecha_susp IS NOT NULL GROUP BY 1 ORDER BY 1;`;
 
+// Churn por país (estado_clientes): clientes totales + cancelaciones por tipo + tasa
+const QUERY_PAIS_EC = `
+WITH e AS (
+  SELECT c.student_id, c.estado_usuario, c.fecha_cancelacion, c.tipo_cancelacion,
+    CASE WHEN est.pais_agrupado IN ('México','Mexico') THEN 'México'
+         WHEN est.pais_agrupado = 'Colombia' THEN 'Colombia'
+         WHEN est.pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos'
+         ELSE 'Otros' END AS pais
+  FROM salesforce.tabla_intermedia_estado_clientes c
+  LEFT JOIN salesforce.tabla_core_estudiantes est ON c.student_id = est.student_id
+  WHERE c.tipo_oportunidad = 'Suscripciones' AND c.fecha_cierre >= '2023-08-01'
+),
+base AS (SELECT pais, COUNT(*) AS clientes_totales FROM e GROUP BY pais),
+cancel AS (SELECT pais, COUNT(*) AS cancelaciones,
+    SUM(CASE WHEN LOWER(COALESCE(tipo_cancelacion,'')) LIKE '%mora%' THEN 1 ELSE 0 END) AS por_mora,
+    SUM(CASE WHEN LOWER(COALESCE(tipo_cancelacion,'')) NOT LIKE '%mora%' THEN 1 ELSE 0 END) AS voluntaria
+  FROM e WHERE estado_usuario = 'Inactivo' AND fecha_cancelacion IS NOT NULL GROUP BY pais)
+SELECT b.pais AS pais_agrupado, b.clientes_totales,
+  COALESCE(c.cancelaciones,0) AS cancelaciones, COALESCE(c.por_mora,0) AS por_mora, COALESCE(c.voluntaria,0) AS voluntaria,
+  ROUND(COALESCE(c.cancelaciones,0) * 100.0 / NULLIF(b.clientes_totales,0), 2) AS tasa_churn_pct
+FROM base b LEFT JOIN cancel c ON b.pais = c.pais
+ORDER BY cancelaciones DESC;`;
+
+// Tiempo de vida (estado_clientes): meses entre cierre y cancelación, por rango y tipo
+const QUERY_VIDA_EC = `
+WITH e AS (
+  SELECT CAST(fecha_cierre AS date) AS fecha_cierre, CAST(fecha_cancelacion AS date) AS fecha_cancelacion,
+    tipo_cancelacion, canal_cancelacion, estado_usuario
+  FROM salesforce.tabla_intermedia_estado_clientes
+  WHERE tipo_oportunidad = 'Suscripciones' AND fecha_cierre >= '2023-08-01'
+),
+v AS (SELECT DATEDIFF('month', fecha_cierre, fecha_cancelacion) AS meses_vida,
+    CASE WHEN COALESCE(canal_cancelacion,'') = 'Caso chargeback' THEN 'Chargeback'
+         WHEN LOWER(COALESCE(tipo_cancelacion,'')) LIKE '%mora%' THEN 'Por mora' ELSE 'Voluntaria' END AS tipo_cancelacion
+  FROM e WHERE estado_usuario = 'Inactivo' AND fecha_cancelacion IS NOT NULL AND fecha_cierre IS NOT NULL)
+SELECT CASE WHEN meses_vida <= 1 THEN 'Mes 1' WHEN meses_vida <= 3 THEN 'Mes 2-3' WHEN meses_vida <= 6 THEN 'Mes 4-6' WHEN meses_vida <= 12 THEN 'Mes 7-12' ELSE '+12 meses' END AS rango_vida,
+  tipo_cancelacion, COUNT(*) AS cantidad, ROUND(AVG(meses_vida)::numeric,1) AS avg_meses
+FROM v WHERE meses_vida >= 0 GROUP BY 1, 2;`;
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
@@ -437,25 +476,19 @@ module.exports = async (req, res) => {
   const client = getClient();
   try {
     await client.connect();
-    const [r1, r2, r3, r4, r5, r6, r7, r8] = await Promise.all([
-      client.query(QUERY_NUEVOS),
-      client.query(QUERY_CANCELACIONES),
-      client.query(QUERY_TASA_CHURN),
+    const [r1, r2, r3, r4, r5] = await Promise.all([
       client.query(QUERY_MOTIVOS),
-      client.query(QUERY_CHURN_PAIS),
-      client.query(QUERY_TIEMPO_VIDA),
+      client.query(QUERY_PAIS_EC),
+      client.query(QUERY_VIDA_EC),
       (async()=>{ const c=getClient(); await c.connect(); try { return await c.query(QUERY_FLUJO); } finally { await c.end(); } })(),
       (async()=>{ const c=getClient(); await c.connect(); try { return await c.query(QUERY_SUSP); } catch(e){ console.error('susp:',e.message); return {rows:[]}; } finally { await c.end(); } })(),
     ]);
     const data = {
-      nuevos:        r1.rows,
-      cancelaciones: r2.rows,
-      tasaChurn:     r3.rows,
-      tiempoVida:    r6.rows,
-      motivos:       r4.rows,
-      churnPais:     r5.rows,
-      flujo:         r7.rows,
-      suspendidos:   r8.rows,
+      motivos:       r1.rows,
+      churnPais:     r2.rows,
+      tiempoVida:    r3.rows,
+      flujo:         r4.rows,
+      suspendidos:   r5.rows,
     };
     await redis.set(CACHE_KEY, JSON.stringify(data), { ex: CACHE_TTL });
     res.status(200).json(data);

@@ -499,7 +499,7 @@ function ChurnTab({data}){
   const totalCancel = Object.values(cancelMes).reduce((s,d)=>s+d.total,0);
   const avgTasa = tasaData.length>0 ? tasaData.reduce((s,d)=>s+d.tasa,0)/tasaData.length : 0;
   const lastTasa = tasaData.length>0 ? tasaData[tasaData.length-1] : null;
-  const totalPorMora = (data.cancelaciones||[]).filter(r=>r.tipo_cancelacion==='Por mora' && isFiltered(r.mes)).reduce((s,r)=>s+(+r.cancelaciones),0);
+  const totalPorMora = flujoFilt.reduce((s,r)=>s+(+r.mora||0),0);
 
   return(
     <>
