@@ -436,7 +436,7 @@ module.exports = async (req, res) => {
   const client = getClient();
   try {
     await client.connect();
-    const [r1, r2, r3, r4, r5, r6, r7, r8] = await Promise.all([
+    const [r1, r2, r3, r4, r5, r6, r7] = await Promise.all([
       client.query(QUERY_NUEVOS),
       client.query(QUERY_CANCELACIONES),
       client.query(QUERY_TASA_CHURN),
@@ -444,7 +444,6 @@ module.exports = async (req, res) => {
       client.query(QUERY_CHURN_PAIS),
       client.query(QUERY_TIEMPO_VIDA),
       (async()=>{ const c=getClient(); await c.connect(); try { return await c.query(QUERY_FLUJO); } finally { await c.end(); } })(),
-      (async()=>{ const c=getClient(); await c.connect(); try { return await c.query(QUERY_SUSP); } catch(e){ console.error('susp:',e.message); return {rows:[]}; } finally { await c.end(); } })(),
     ]);
     const data = {
       nuevos:        r1.rows,
@@ -454,7 +453,6 @@ module.exports = async (req, res) => {
       motivos:       r4.rows,
       churnPais:     r5.rows,
       flujo:         r7.rows,
-      suspendidos:   r8.rows,
     };
     await redis.set(CACHE_KEY, JSON.stringify(data), { ex: CACHE_TTL });
     res.status(200).json(data);
