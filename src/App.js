@@ -506,8 +506,8 @@ function ChurnTab({data}){
 
   // Motivos top
   const motivosAgg = {};
-  (data.motivos||[]).filter(r=>dimOk(r) && isFiltered(r.mes)).forEach(r=>{
-    const k = r.motivo_cancelacion||'Sin motivo';
+  (data.motivos||[]).filter(r=>dimOk(r) && isFiltered(r.mes) && r.motivo_cancelacion && r.motivo_cancelacion!=='Sin motivo').forEach(r=>{
+    const k = r.motivo_cancelacion;
     if(!motivosAgg[k])motivosAgg[k]={motivo:k,casos:0};
     motivosAgg[k].casos += +r.casos;
   });
