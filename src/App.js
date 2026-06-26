@@ -958,9 +958,13 @@ function CancelacionesTab({data, nuevos=[]}){
   const COLORS=['#ef4444','#f59e0b','#8b5cf6','#06b6d4','#6366f1','#10b981'];
   const TIPO_COLORS={'Por mora':'#ef4444','Voluntaria':'#f59e0b','Chargeback':'#8b5cf6','Desenrolada':'#06b6d4','Otro':'#94a3b8'};
 
-  // Filtro por tipo de pago — afecta toda la pestaña
+  // Filtros — afectan toda la pestaña
   const [tipoPago,setTipoPago]=useState('Todos');
-  const pasaTP = r => tipoPago==='Todos' || r.tipo_pago===tipoPago;
+  const [selPais,setSelPais]=useState('Todos');
+  const [selTC,setSelTC]=useState('Todos');
+  const pasaTP = r => (tipoPago==='Todos'||r.tipo_pago===tipoPago) && (selPais==='Todos'||r.pais_agrupado===selPais) && (selTC==='Todos'||r.tipo_cliente===selTC);
+  const cPaisOpts = ['Todos', ...Array.from(new Set((data||[]).map(r=>r.pais_agrupado).filter(Boolean))).sort()];
+  const cTcOpts   = ['Todos', ...Array.from(new Set((data||[]).map(r=>r.tipo_cliente).filter(Boolean))).sort()];
 
   // Totales por tipo de cancelación
   const porTipo = {};
@@ -1037,8 +1041,16 @@ function CancelacionesTab({data, nuevos=[]}){
 
   return(
     <>
-      {/* Filtro tipo de pago */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:10,marginBottom:14}}>
+      {/* Filtros */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:10,marginBottom:14,flexWrap:'wrap'}}>
+        {[['País',selPais,setSelPais,cPaisOpts],['Tipo cliente',selTC,setSelTC,cTcOpts]].map(([lbl,val,setter,opts])=>(
+          <label key={lbl} style={{display:'flex',alignItems:'center',gap:6,fontSize:13,color:'#555',fontWeight:600}}>
+            {lbl}:
+            <select value={val} onChange={e=>setter(e.target.value)} style={{fontFamily:'inherit',fontSize:12,padding:'6px 8px',borderRadius:8,border:'1px solid #e5e7eb',background:'#fff',color:'#111',maxWidth:190}}>
+              {opts.map(o=><option key={o} value={o}>{o}</option>)}
+            </select>
+          </label>
+        ))}
         <span style={{fontSize:13,color:'#555',fontWeight:600}}>Tipo de pago:</span>
         <div className="gran-selector">
           {['Todos','Cuotas','Recurrencia'].map(o=>(
