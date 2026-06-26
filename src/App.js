@@ -3392,9 +3392,9 @@ function App({authUser, onLogout}){
     if(!churn && !churnLoading && !churnError){
       setChurnLoading(true);
       // Fetch principal rápido (5 queries en paralelo)
-      fetch('/api/churn').then(r=>r.json()).then(({nuevos,cancelaciones,tasaChurn,tiempoVida,motivos,churnPais,error})=>{
+      fetch('/api/churn').then(r=>r.json()).then(({nuevos,cancelaciones,tasaChurn,tiempoVida,motivos,churnPais,flujo,suspendidos,error})=>{
         if(error) throw new Error(error);
-        setChurn({nuevos,cancelaciones,tasaChurn,tiempoVida:tiempoVida||[],motivos,churnPais});
+        setChurn({nuevos,cancelaciones,tasaChurn,tiempoVida:tiempoVida||[],motivos,churnPais,flujo:flujo||[],suspendidos:suspendidos||[]});
       }).catch(e=>setChurnError(e.message)).finally(()=>setChurnLoading(false));
     }
     if(!cancelaciones && !cancelLoading){
