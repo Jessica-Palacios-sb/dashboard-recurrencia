@@ -978,7 +978,7 @@ function CancelacionesTab({data, nuevos=[]}){
 
   // Cancelaciones por mes (mora vs voluntaria)
   const mesCancelData={};
-  data.filter(r=>r.mes_cancelacion&&r.mes_cancelacion>='2024-05'&&r.mes_cancelacion<=new Date().toISOString().slice(0,7)&&pasaTP(r)).forEach(r=>{
+  data.filter(r=>r.mes_cancelacion&&r.mes_cancelacion>='2023-08'&&r.mes_cancelacion<=new Date().toISOString().slice(0,7)&&pasaTP(r)).forEach(r=>{
     const m=r.mes_cancelacion;
     if(!mesCancelData[m])mesCancelData[m]={mes:m,'Por mora':0,'Voluntaria':0,'Chargeback':0,'Desenrolada':0,total:0};
     const n=+r.suscripciones;
@@ -1017,7 +1017,7 @@ function CancelacionesTab({data, nuevos=[]}){
   const nuevasMes={};
   nuevos.forEach(r=>{
     const m=r.mes;
-    if(!m||m<'2024-05'||m>new Date().toISOString().slice(0,7)||!pasaTP(r))return;
+    if(!m||m<'2023-08'||m>new Date().toISOString().slice(0,7)||!pasaTP(r))return;
     if(!nuevasMes[m])nuevasMes[m]={mes:m,nuevas:0,canceladas:0};
     nuevasMes[m].nuevas+=+r.nuevos_clientes;
   });
