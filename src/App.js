@@ -399,12 +399,39 @@ function NavTab({tabs, active, onChange, badges={}}){
   );
 }
 
+function MultiSelect({label, options, value, onChange}){
+  const [open,setOpen]=useState(false);
+  const txt = value.length===0?'Todos':value.length===1?value[0]:`${value.length} sel.`;
+  const toggle=o=>onChange(value.includes(o)?value.filter(x=>x!==o):[...value,o]);
+  return (
+    <div style={{position:'relative',display:'inline-flex',alignItems:'center',gap:6,fontSize:13,color:'#555',fontWeight:600}}>
+      {label}:
+      <button type="button" onClick={()=>setOpen(o=>!o)} style={{fontFamily:'inherit',fontSize:12,padding:'6px 8px',borderRadius:8,border:'1px solid #e5e7eb',background:'#fff',color:'#111',minWidth:120,maxWidth:210,cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+        <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{txt}</span><span style={{fontSize:10,color:'#9ca3af'}}>▾</span>
+      </button>
+      {open && (<>
+        <div onClick={()=>setOpen(false)} style={{position:'fixed',inset:0,zIndex:20}}/>
+        <div style={{position:'absolute',top:'100%',left:0,marginTop:4,zIndex:21,background:'#fff',border:'1px solid #e5e7eb',borderRadius:8,boxShadow:'0 4px 14px rgba(0,0,0,0.12)',padding:6,minWidth:190,maxHeight:280,overflowY:'auto'}}>
+          <label style={{display:'flex',alignItems:'center',gap:8,padding:'6px 8px',fontSize:12,fontWeight:600,cursor:'pointer',borderBottom:'1px solid #f3f4f6',color:'#111'}}>
+            <input type="checkbox" checked={value.length===0} onChange={()=>onChange([])}/> Todos
+          </label>
+          {options.map(o=>(
+            <label key={o} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 8px',fontSize:12,cursor:'pointer',color:'#374151'}}>
+              <input type="checkbox" checked={value.includes(o)} onChange={()=>toggle(o)}/> {o}
+            </label>
+          ))}
+        </div>
+      </>)}
+    </div>
+  );
+}
+
 function ChurnTab({data}){
   const [desde, setDesde] = useState(null);
   const [hasta, setHasta] = useState(null);
   const [selPais, setSelPais] = useState('Todos');
   const [selTP, setSelTP] = useState('Todos');
-  const [selTC, setSelTC] = useState('Todos');
+  const [selTC, setSelTC] = useState([]);
 
   const fmt    = n => n==null?'—':Number(n).toLocaleString('es-CO',{minimumFractionDigits:0,maximumFractionDigits:0});
   const fmtUSD = n => n==null?'—':'$'+Number(n).toLocaleString('es-CO',{minimumFractionDigits:0,maximumFractionDigits:0});
@@ -428,7 +455,7 @@ function ChurnTab({data}){
   const paisOpts = ['Todos', ...Array.from(new Set(flujoRaw.map(r=>r.pais).filter(Boolean))).sort()];
   const tcOpts   = ['Todos', ...Array.from(new Set(flujoRaw.map(r=>r.tipo_cliente).filter(Boolean))).sort()];
   const tpOpts   = ['Todos','Cuotas','Recurrencia'];
-  const dimOk = r => (selPais==='Todos'||r.pais===selPais) && (selTC==='Todos'||r.tipo_cliente===selTC) && (selTP==='Todos'||tipoPagoOf(r.tipo_cliente)===selTP);
+  const dimOk = r => (selPais==='Todos'||r.pais===selPais) && (selTC.length===0||selTC.includes(r.tipo_cliente)) && (selTP==='Todos'||tipoPagoOf(r.tipo_cliente)===selTP);
 
   const mesLabel = m => { try { return new Date(m+'-01T00:00:00').toLocaleDateString('es',{month:'short',year:'numeric'}).replace('.',''); } catch { return m; } };
 
@@ -479,8 +506,7 @@ function ChurnTab({data}){
 
   // Motivos top
   const motivosAgg = {};
-  (data.motivos||[]).forEach(r=>{
-    if(!isFiltered(r.mes)) return;
+  (data.motivos||[]).filter(r=>dimOk(r) && isFiltered(r.mes)).forEach(r=>{
     const k = r.motivo_cancelacion||'Sin motivo';
     if(!motivosAgg[k])motivosAgg[k]={motivo:k,casos:0};
     motivosAgg[k].casos += +r.casos;
@@ -510,7 +536,7 @@ function ChurnTab({data}){
     <>
       <div style={{display:'flex', alignItems:'center', gap:12, marginBottom:20, flexWrap:'wrap'}}>
         <MonthRangePicker value={{from:desde, to:hasta}} onChange={({from,to})=>{setDesde(from); setHasta(to);}}/>
-        {[['País',selPais,setSelPais,paisOpts],['Tipo pago',selTP,setSelTP,tpOpts],['Tipo cliente',selTC,setSelTC,tcOpts]].map(([lbl,val,setter,opts])=>(
+        {[['País',selPais,setSelPais,paisOpts],['Tipo pago',selTP,setSelTP,tpOpts]].map(([lbl,val,setter,opts])=>(
           <label key={lbl} style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#6b7280'}}>
             {lbl}:
             <select value={val} onChange={e=>setter(e.target.value)} style={{fontFamily:'inherit',fontSize:12,padding:'6px 8px',borderRadius:8,border:'1px solid #e5e7eb',background:'#fff',color:'#111',maxWidth:190}}>
@@ -518,7 +544,8 @@ function ChurnTab({data}){
             </select>
           </label>
         ))}
-        {(selPais!=='Todos'||selTP!=='Todos'||selTC!=='Todos') && <button onClick={()=>{setSelPais('Todos');setSelTP('Todos');setSelTC('Todos');}} style={{fontFamily:'inherit',fontSize:12,padding:'6px 10px',borderRadius:8,border:'1px solid #e5e7eb',background:'#f9fafb',color:'#6b7280',cursor:'pointer'}}>Limpiar</button>}
+        <MultiSelect label="Tipo cliente" options={tcOpts.filter(o=>o!=='Todos')} value={selTC} onChange={setSelTC}/>
+        {(selPais!=='Todos'||selTP!=='Todos'||selTC.length>0) && <button onClick={()=>{setSelPais('Todos');setSelTP('Todos');setSelTC([]);}} style={{fontFamily:'inherit',fontSize:12,padding:'6px 10px',borderRadius:8,border:'1px solid #e5e7eb',background:'#f9fafb',color:'#6b7280',cursor:'pointer'}}>Limpiar</button>}
       </div>
 
       {/* KPIs */}
@@ -961,8 +988,8 @@ function CancelacionesTab({data, nuevos=[]}){
   // Filtros — afectan toda la pestaña
   const [tipoPago,setTipoPago]=useState('Todos');
   const [selPais,setSelPais]=useState('Todos');
-  const [selTC,setSelTC]=useState('Todos');
-  const pasaTP = r => (tipoPago==='Todos'||r.tipo_pago===tipoPago) && (selPais==='Todos'||r.pais_agrupado===selPais) && (selTC==='Todos'||r.tipo_cliente===selTC);
+  const [selTC,setSelTC]=useState([]);
+  const pasaTP = r => (tipoPago==='Todos'||r.tipo_pago===tipoPago) && (selPais==='Todos'||r.pais_agrupado===selPais) && (selTC.length===0||selTC.includes(r.tipo_cliente));
   const cPaisOpts = ['Todos', ...Array.from(new Set((data||[]).map(r=>r.pais_agrupado).filter(Boolean))).sort()];
   const cTcOpts   = ['Todos', ...Array.from(new Set((data||[]).map(r=>r.tipo_cliente).filter(Boolean))).sort()];
 
@@ -1043,14 +1070,13 @@ function CancelacionesTab({data, nuevos=[]}){
     <>
       {/* Filtros */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:10,marginBottom:14,flexWrap:'wrap'}}>
-        {[['País',selPais,setSelPais,cPaisOpts],['Tipo cliente',selTC,setSelTC,cTcOpts]].map(([lbl,val,setter,opts])=>(
-          <label key={lbl} style={{display:'flex',alignItems:'center',gap:6,fontSize:13,color:'#555',fontWeight:600}}>
-            {lbl}:
-            <select value={val} onChange={e=>setter(e.target.value)} style={{fontFamily:'inherit',fontSize:12,padding:'6px 8px',borderRadius:8,border:'1px solid #e5e7eb',background:'#fff',color:'#111',maxWidth:190}}>
-              {opts.map(o=><option key={o} value={o}>{o}</option>)}
-            </select>
-          </label>
-        ))}
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:13,color:'#555',fontWeight:600}}>
+          País:
+          <select value={selPais} onChange={e=>setSelPais(e.target.value)} style={{fontFamily:'inherit',fontSize:12,padding:'6px 8px',borderRadius:8,border:'1px solid #e5e7eb',background:'#fff',color:'#111',maxWidth:190}}>
+            {cPaisOpts.map(o=><option key={o} value={o}>{o}</option>)}
+          </select>
+        </label>
+        <MultiSelect label="Tipo cliente" options={cTcOpts.filter(o=>o!=='Todos')} value={selTC} onChange={setSelTC}/>
         <span style={{fontSize:13,color:'#555',fontWeight:600}}>Tipo de pago:</span>
         <div className="gran-selector">
           {['Todos','Cuotas','Recurrencia'].map(o=>(

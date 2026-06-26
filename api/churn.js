@@ -160,28 +160,22 @@ ORDER BY b.mes;
 
 // ── Query 4: Motivos de cancelación ───────────────────────────────────────────
 const QUERY_MOTIVOS = `
-SELECT
-  TO_CHAR(DATE_TRUNC('month', c.fecha_cierre), 'YYYY-MM') AS mes,
-  c.motivo_cancelacion,
-  c.sub_motivo_cancelacion,
-  c.tipo_cancelacion,
-  COUNT(*) AS casos,
-  CASE
-    WHEN e.pais_agrupado IN ('México','Mexico')                THEN 'México'
-    WHEN e.pais_agrupado = 'Colombia'                          THEN 'Colombia'
-    WHEN e.pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos'
-    ELSE 'Otros'
-  END AS pais_agrupado
-FROM salesforce.tabla_intermedia_casos_cancelaciones c
-LEFT JOIN salesforce.tabla_core_estudiantes e ON c.student_id = e.student_id
-WHERE c.fecha_cierre IS NOT NULL
-  AND c.fecha_cierre >= '2024-03-06'
-  AND c.motivo_cancelacion IS NOT NULL
-GROUP BY
-  DATE_TRUNC('month', c.fecha_cierre),
-  c.motivo_cancelacion, c.sub_motivo_cancelacion,
-  c.tipo_cancelacion, e.pais_agrupado
-ORDER BY mes, casos DESC;
+WITH e AS (
+  SELECT c.student_id, CAST(c.fecha_cancelacion AS date) AS fecha_cancelacion, c.estado_usuario, c.motivo_cancelacion,
+    COALESCE(NULLIF(TRIM(c.tipo_cliente),''),'(sin)') AS tipo_cliente,
+    CASE WHEN est.pais_agrupado IN ('México','Mexico') THEN 'México'
+         WHEN est.pais_agrupado = 'Colombia' THEN 'Colombia'
+         WHEN est.pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos'
+         ELSE 'Otros' END AS pais
+  FROM salesforce.tabla_intermedia_estado_clientes c
+  LEFT JOIN salesforce.tabla_core_estudiantes est ON c.student_id = est.student_id
+  WHERE c.tipo_oportunidad = 'Suscripciones' AND c.fecha_cierre >= '2023-08-01'
+    AND c.estado_usuario = 'Inactivo' AND c.fecha_cancelacion IS NOT NULL AND c.fecha_cancelacion <= GETDATE()
+)
+SELECT TO_CHAR(DATE_TRUNC('month', fecha_cancelacion),'YYYY-MM') AS mes, pais, tipo_cliente,
+  COALESCE(NULLIF(TRIM(motivo_cancelacion),''),'Sin motivo') AS motivo_cancelacion,
+  COUNT(*) AS casos
+FROM e GROUP BY 1, 2, 3, 4;
 `;
 
 // ── Query 5: Tiempo de vida hasta cancelación ────────────────────────────────
