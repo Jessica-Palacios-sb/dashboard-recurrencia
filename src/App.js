@@ -526,12 +526,12 @@ function ChurnTab({data}){
         <div className="kpi-card">
           <div className="kpi-label">Nuevos clientes</div>
           <div className="kpi-value" style={{color:'#10b981'}}>{fmt(totalNuevos)}</div>
-          <div className="kpi-sub">Facturas 1 pagadas desde may 2024</div>
+          <div className="kpi-sub">Altas por primer cierre de suscripción</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-label">Cancelaciones totales</div>
           <div className="kpi-value" style={{color:'#ef4444'}}>{fmt(totalCancel)}</div>
-          <div className="kpi-sub">Desde enero 2025</div>
+          <div className="kpi-sub">En el período seleccionado</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-label">Tasa churn promedio</div>
@@ -559,7 +559,7 @@ function ChurnTab({data}){
       <div className="insight-banner" style={{background:'#fef2f2',borderColor:'#fecaca'}}>
         <div className="insight-icon">🔍</div>
         <div>
-          <strong>Ciclo de vida del cliente:</strong> Desde enero 2025 entraron <strong>{fmt(totalNuevos)}</strong> clientes nuevos y se cancelaron <strong>{fmt(totalCancel)}</strong> suscripciones — un neto de <strong>{totalNuevos-totalCancel>=0?'+':''}{fmt(totalNuevos-totalCancel)}</strong>. El <strong>{fmtPct(totalCancel>0?totalPorMora/totalCancel*100:0)}</strong> de las cancelaciones son por mora, lo que significa que son potencialmente recuperables con gestión de cobranza temprana.
+          <strong>Ciclo de vida del cliente:</strong> En el período seleccionado entraron <strong>{fmt(totalNuevos)}</strong> clientes nuevos y se cancelaron <strong>{fmt(totalCancel)}</strong> suscripciones — un neto de <strong>{totalNuevos-totalCancel>=0?'+':''}{fmt(totalNuevos-totalCancel)}</strong>. El <strong>{fmtPct(totalCancel>0?totalPorMora/totalCancel*100:0)}</strong> de las cancelaciones son por mora, lo que significa que son potencialmente recuperables con gestión de cobranza temprana.
         </div>
       </div>
 
@@ -1064,7 +1064,7 @@ function CancelacionesTab({data, nuevos=[]}){
         <div className="kpi-card">
           <div className="kpi-label">Total cancelaciones</div>
           <div className="kpi-value" style={{color:'#ef4444'}}>{fmt(totalCancel)}</div>
-          <div className="kpi-sub">Desde enero 2025</div>
+          <div className="kpi-sub">En el período seleccionado</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-label">Por mora</div>
