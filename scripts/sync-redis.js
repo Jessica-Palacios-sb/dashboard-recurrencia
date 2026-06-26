@@ -456,7 +456,7 @@ WITH e AS (
     CASE WHEN LOWER(COALESCE(c.tipo_cliente,'')) LIKE '%cuotas%' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago,
     CASE WHEN est.pais_agrupado IN ('México','Mexico') THEN 'México' WHEN est.pais_agrupado = 'Colombia' THEN 'Colombia' WHEN est.pais_agrupado IN ('Estados Unidos','United States') THEN 'Estados Unidos' ELSE 'Otros' END AS pais_agrupado
   FROM salesforce.tabla_intermedia_estado_clientes c LEFT JOIN salesforce.tabla_core_estudiantes est ON c.student_id = est.student_id
-  WHERE c.tipo_oportunidad = 'Suscripciones' AND c.fecha_cierre >= '2023-08-01' AND c.estado_usuario = 'Inactivo' AND c.fecha_cancelacion IS NOT NULL
+  WHERE c.tipo_oportunidad = 'Suscripciones' AND c.fecha_cierre >= '2023-08-01' AND c.estado_usuario = 'Inactivo' AND c.fecha_cancelacion IS NOT NULL AND c.fecha_cancelacion <= GETDATE()
 )
 SELECT TO_CHAR(DATE_TRUNC('month', fecha_cancelacion),'YYYY-MM') AS mes_cancelacion, TO_CHAR(DATE_TRUNC('month', fecha_cierre),'YYYY-MM') AS mes_inicio,
   CASE WHEN COALESCE(canal_cancelacion,'') = 'Caso chargeback' THEN 'Chargeback' WHEN LOWER(COALESCE(tipo_cancelacion,'')) LIKE '%mora%' THEN 'Por mora' ELSE 'Voluntaria' END AS tipo_cancelacion,
@@ -497,7 +497,7 @@ cancel AS (SELECT TO_CHAR(DATE_TRUNC('month', fecha_cancelacion),'YYYY-MM') AS m
     SUM(CASE WHEN COALESCE(canal_cancelacion,'') = 'Caso chargeback' THEN 1 ELSE 0 END) AS chargeback,
     SUM(CASE WHEN COALESCE(canal_cancelacion,'') <> 'Caso chargeback' AND LOWER(COALESCE(tipo_cancelacion,'')) LIKE '%mora%' THEN 1 ELSE 0 END) AS mora,
     SUM(CASE WHEN COALESCE(canal_cancelacion,'') <> 'Caso chargeback' AND LOWER(COALESCE(tipo_cancelacion,'')) NOT LIKE '%mora%' THEN 1 ELSE 0 END) AS voluntarias
-  FROM e WHERE estado_usuario = 'Inactivo' AND fecha_cancelacion IS NOT NULL GROUP BY 1,2,3)
+  FROM e WHERE estado_usuario = 'Inactivo' AND fecha_cierre IS NOT NULL AND fecha_cancelacion IS NOT NULL AND fecha_cancelacion <= GETDATE() GROUP BY 1,2,3)
 SELECT COALESCE(n.mes,c.mes) AS mes, COALESCE(n.pais,c.pais) AS pais, COALESCE(n.tipo_cliente,c.tipo_cliente) AS tipo_cliente,
   COALESCE(n.nuevos,0) AS nuevos, COALESCE(c.cancelados,0) AS cancelados, COALESCE(c.chargeback,0) AS chargeback, COALESCE(c.mora,0) AS mora, COALESCE(c.voluntarias,0) AS voluntarias
 FROM nuevos n FULL OUTER JOIN cancel c ON n.mes=c.mes AND n.pais=c.pais AND n.tipo_cliente=c.tipo_cliente ORDER BY mes;`;
@@ -529,7 +529,7 @@ WITH e AS (SELECT c.student_id, CAST(c.fecha_cierre AS date) AS fecha_cierre, CA
   WHERE c.tipo_oportunidad = 'Suscripciones' AND c.fecha_cierre >= '2023-08-01'),
 v AS (SELECT TO_CHAR(DATE_TRUNC('month', fecha_cancelacion),'YYYY-MM') AS mes, pais, tipo_cliente, DATEDIFF('month', fecha_cierre, fecha_cancelacion) AS meses_vida,
     CASE WHEN COALESCE(canal_cancelacion,'') = 'Caso chargeback' THEN 'Chargeback' WHEN LOWER(COALESCE(tipo_cancelacion,'')) LIKE '%mora%' THEN 'Por mora' ELSE 'Voluntaria' END AS tipo_cancelacion
-  FROM e WHERE estado_usuario = 'Inactivo' AND fecha_cancelacion IS NOT NULL AND fecha_cierre IS NOT NULL)
+  FROM e WHERE estado_usuario = 'Inactivo' AND fecha_cancelacion IS NOT NULL AND fecha_cierre IS NOT NULL AND fecha_cancelacion <= GETDATE())
 SELECT mes, pais, tipo_cliente,
   CASE WHEN meses_vida <= 1 THEN 'Mes 1' WHEN meses_vida <= 3 THEN 'Mes 2-3' WHEN meses_vida <= 6 THEN 'Mes 4-6' WHEN meses_vida <= 12 THEN 'Mes 7-12' ELSE '+12 meses' END AS rango_vida,
   tipo_cancelacion, COUNT(*) AS cantidad, SUM(meses_vida) AS suma_meses

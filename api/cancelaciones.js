@@ -27,7 +27,7 @@ WITH e AS (
   FROM salesforce.tabla_intermedia_estado_clientes c
   LEFT JOIN salesforce.tabla_core_estudiantes est ON c.student_id = est.student_id
   WHERE c.tipo_oportunidad = 'Suscripciones' AND c.fecha_cierre >= '2023-08-01'
-    AND c.estado_usuario = 'Inactivo' AND c.fecha_cancelacion IS NOT NULL
+    AND c.estado_usuario = 'Inactivo' AND c.fecha_cancelacion IS NOT NULL AND c.fecha_cancelacion <= GETDATE()
 )
 SELECT
   TO_CHAR(DATE_TRUNC('month', fecha_cancelacion), 'YYYY-MM') AS mes_cancelacion,

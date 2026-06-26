@@ -400,7 +400,7 @@ cancel AS (
     SUM(CASE WHEN COALESCE(canal_cancelacion,'') = 'Caso chargeback' THEN 1 ELSE 0 END) AS chargeback,
     SUM(CASE WHEN COALESCE(canal_cancelacion,'') <> 'Caso chargeback' AND LOWER(COALESCE(tipo_cancelacion,'')) LIKE '%mora%' THEN 1 ELSE 0 END) AS mora,
     SUM(CASE WHEN COALESCE(canal_cancelacion,'') <> 'Caso chargeback' AND LOWER(COALESCE(tipo_cancelacion,'')) NOT LIKE '%mora%' THEN 1 ELSE 0 END) AS voluntarias
-  FROM e WHERE estado_usuario = 'Inactivo' AND fecha_cancelacion IS NOT NULL GROUP BY 1,2,3
+  FROM e WHERE estado_usuario = 'Inactivo' AND fecha_cierre IS NOT NULL AND fecha_cancelacion IS NOT NULL AND fecha_cancelacion <= GETDATE() GROUP BY 1,2,3
 )
 SELECT COALESCE(n.mes,c.mes) AS mes, COALESCE(n.pais,c.pais) AS pais, COALESCE(n.tipo_cliente,c.tipo_cliente) AS tipo_cliente,
   COALESCE(n.nuevos,0) AS nuevos, COALESCE(c.cancelados,0) AS cancelados,
@@ -455,7 +455,7 @@ v AS (SELECT TO_CHAR(DATE_TRUNC('month', fecha_cancelacion),'YYYY-MM') AS mes, p
     DATEDIFF('month', fecha_cierre, fecha_cancelacion) AS meses_vida,
     CASE WHEN COALESCE(canal_cancelacion,'') = 'Caso chargeback' THEN 'Chargeback'
          WHEN LOWER(COALESCE(tipo_cancelacion,'')) LIKE '%mora%' THEN 'Por mora' ELSE 'Voluntaria' END AS tipo_cancelacion
-  FROM e WHERE estado_usuario = 'Inactivo' AND fecha_cancelacion IS NOT NULL AND fecha_cierre IS NOT NULL)
+  FROM e WHERE estado_usuario = 'Inactivo' AND fecha_cancelacion IS NOT NULL AND fecha_cierre IS NOT NULL AND fecha_cancelacion <= GETDATE())
 SELECT mes, pais, tipo_cliente,
   CASE WHEN meses_vida <= 1 THEN 'Mes 1' WHEN meses_vida <= 3 THEN 'Mes 2-3' WHEN meses_vida <= 6 THEN 'Mes 4-6' WHEN meses_vida <= 12 THEN 'Mes 7-12' ELSE '+12 meses' END AS rango_vida,
   tipo_cancelacion, COUNT(*) AS cantidad, SUM(meses_vida) AS suma_meses
