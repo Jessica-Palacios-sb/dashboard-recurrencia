@@ -764,8 +764,16 @@ pagos AS (
     SUM(CASE WHEN payment_amount_usd > 0 THEN 1 ELSE 0 END) AS n,
     ROUND(SUM(COALESCE(payment_amount_usd, 0))::numeric, 0) AS cash
   FROM detalle WHERE fecha_cierre IS NOT NULL AND numero_invoice_factura BETWEEN 1 AND 24 GROUP BY 2,3,4,5,6,7
+),
+pagos_semana AS (
+  SELECT 'psem' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago, tipo_venta,
+    TO_CHAR(fecha_cierre, 'YYYY-MM') AS k1,
+    CAST(LEAST(GREATEST(0, DATEDIFF('week', DATE_TRUNC('month', fecha_cierre), fecha_pago)), 51) AS varchar) AS k2,
+    SUM(CASE WHEN payment_amount_usd > 0 THEN 1 ELSE 0 END) AS n,
+    ROUND(SUM(COALESCE(payment_amount_usd, 0))::numeric, 0) AS cash
+  FROM detalle WHERE fecha_cierre IS NOT NULL AND fecha_pago IS NOT NULL AND payment_amount_usd > 0 GROUP BY 2,3,4,5,6,7
 )
-SELECT * FROM funnel WHERE k1 IS NOT NULL UNION ALL SELECT * FROM cohorte UNION ALL SELECT * FROM pagos`;
+SELECT * FROM funnel WHERE k1 IS NOT NULL UNION ALL SELECT * FROM cohorte UNION ALL SELECT * FROM pagos UNION ALL SELECT * FROM pagos_semana`;
       // Resumen por cohorte (mes de cierre): sales, facturas, importe, meta a hoy, total pagado.
       const QUERY_RESUMEN = `${DETALLE}
 SELECT pais, tipo_cliente,
@@ -795,7 +803,8 @@ GROUP BY 1,2,3,4,5`;
       const cohorte = r.rows.filter(x => x.tipo === 'cohorte').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, tipo_venta: x.tipo_venta, cohorte: x.k1, mes_vencimiento: x.k2, invoices: +x.n }));
       const pagos = r.rows.filter(x => x.tipo === 'pagos').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, tipo_venta: x.tipo_venta, cohorte: x.k1, numero: +x.k2, facturas: +x.n, cash: +x.cash || 0 }));
       const resumen = rr.rows.map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, tipo_venta: x.tipo_venta, cohorte: x.cohorte, sales: +x.sales, facturas: +x.facturas, importe: +x.importe, meta_hoy: +x.meta_hoy, total_pagado: +x.total_pagado, importe_up: +x.importe_up, cash_up: +x.cash_up, cash_factura1: +x.cash_factura1, importe_cancel: +x.importe_cancel, sum_payment: +x.sum_payment, importe_mora: +x.importe_mora, importe_rec_pago: +x.importe_rec_pago }));
-      return { funnel, cohorte, resumen, pagos };
+      const pagosSemana = r.rows.filter(x => x.tipo === 'psem').map(x => ({ pais: x.pais, tipo_cliente: x.tipo_cliente, tipo_pago: x.tipo_pago, tipo_venta: x.tipo_venta, cohorte: x.k1, semana: +x.k2, cash: +x.cash || 0 }));
+      return { funnel, cohorte, resumen, pagos, pagosSemana };
     },
   },
 
