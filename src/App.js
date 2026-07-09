@@ -193,6 +193,7 @@ const _MRP_QUICK=[
   {label:'Últimos 6 m',   fn:()=>({from:_mrpAdd(_MRP_LAST,-5),to:_MRP_LAST})},
   {label:'Último año',    fn:()=>({from:_mrpAdd(_MRP_LAST,-11),to:_MRP_LAST})},
   {label:'Todo',          fn:()=>({from:'',to:''})},
+  {label:'Fecha personalizada', custom:true},
 ];
 
 function MonthRangePicker({value={from:'',to:''},onChange,align='left'}){
@@ -210,6 +211,7 @@ function MonthRangePicker({value={from:'',to:''},onChange,align='left'}){
   const apply=(from,to)=>{onChange({from,to});setAnchor(null);setHover(null);};
   const handleQuick=(rng,label)=>{
     setActiveQ(label);setAnchor(null);
+    if(rng.custom){setHover(null);return;} // deja el picker abierto para elegir el rango en la grilla
     const{from,to}=rng.fn();
     apply(from,to);
     if(from)setYear(_mrpParse(from).y);
@@ -449,8 +451,8 @@ function MultiSelect({label, options, value, onChange}){
 function ChurnTab({data}){
   const [desde, setDesde] = useState(null);
   const [hasta, setHasta] = useState(null);
-  const [selPais, setSelPais] = useState('Todos');
-  const [selTP, setSelTP] = useState('Todos');
+  const [selPais, setSelPais] = useState([]);
+  const [selTP, setSelTP] = useState([]);
   const [selTC, setSelTC] = useState([]);
 
   const fmt    = n => n==null?'—':Number(n).toLocaleString('es-CO',{minimumFractionDigits:0,maximumFractionDigits:0});
@@ -475,7 +477,7 @@ function ChurnTab({data}){
   const paisOpts = ['Todos', ...Array.from(new Set(flujoRaw.map(r=>r.pais).filter(Boolean))).sort()];
   const tcOpts   = ['Todos', ...Array.from(new Set(flujoRaw.map(r=>r.tipo_cliente).filter(Boolean))).sort()];
   const tpOpts   = ['Todos','Cuotas','Recurrencia'];
-  const dimOk = r => (selPais==='Todos'||r.pais===selPais) && (selTC.length===0||selTC.includes(r.tipo_cliente)) && (selTP==='Todos'||tipoPagoOf(r.tipo_cliente)===selTP);
+  const dimOk = r => (selPais.length===0||selPais.includes(r.pais)) && (selTC.length===0||selTC.includes(r.tipo_cliente)) && (selTP.length===0||selTP.includes(tipoPagoOf(r.tipo_cliente)));
 
   const mesLabel = m => { try { return new Date(m+'-01T00:00:00').toLocaleDateString('es',{month:'short',year:'numeric'}).replace('.',''); } catch { return m; } };
 
@@ -556,16 +558,10 @@ function ChurnTab({data}){
     <>
       <div className="sticky-filters" style={{display:'flex', alignItems:'center', gap:12, marginBottom:20, flexWrap:'wrap'}}>
         <MonthRangePicker value={{from:desde, to:hasta}} onChange={({from,to})=>{setDesde(from); setHasta(to);}}/>
-        {[['País',selPais,setSelPais,paisOpts],['Tipo pago',selTP,setSelTP,tpOpts]].map(([lbl,val,setter,opts])=>(
-          <label key={lbl} style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#6b7280'}}>
-            {lbl}:
-            <select value={val} onChange={e=>setter(e.target.value)} style={{fontFamily:'inherit',fontSize:12,padding:'6px 8px',borderRadius:8,border:'1px solid #e5e7eb',background:'#fff',color:'#111',maxWidth:190}}>
-              {opts.map(o=><option key={o} value={o}>{o}</option>)}
-            </select>
-          </label>
-        ))}
+        <MultiSelect label="País" options={paisOpts.filter(o=>o!=='Todos')} value={selPais} onChange={setSelPais}/>
+        <MultiSelect label="Tipo pago" options={tpOpts.filter(o=>o!=='Todos')} value={selTP} onChange={setSelTP}/>
         <MultiSelect label="Tipo cliente" options={tcOpts.filter(o=>o!=='Todos')} value={selTC} onChange={setSelTC}/>
-        {(selPais!=='Todos'||selTP!=='Todos'||selTC.length>0) && <button onClick={()=>{setSelPais('Todos');setSelTP('Todos');setSelTC([]);}} style={{fontFamily:'inherit',fontSize:12,padding:'6px 10px',borderRadius:8,border:'1px solid #e5e7eb',background:'#f9fafb',color:'#6b7280',cursor:'pointer'}}>Limpiar</button>}
+        {(selPais.length>0||selTP.length>0||selTC.length>0) && <button onClick={()=>{setSelPais([]);setSelTP([]);setSelTC([]);}} style={{fontFamily:'inherit',fontSize:12,padding:'6px 10px',borderRadius:8,border:'1px solid #e5e7eb',background:'#f9fafb',color:'#6b7280',cursor:'pointer'}}>Limpiar</button>}
       </div>
 
       {/* KPIs */}
@@ -1006,10 +1002,10 @@ function CancelacionesTab({data, nuevos=[]}){
   const TIPO_COLORS={'Por mora':'#ef4444','Voluntaria':'#f59e0b','Chargeback':'#8b5cf6','Desenrolada':'#06b6d4','Otro':'#94a3b8'};
 
   // Filtros — afectan toda la pestaña
-  const [tipoPago,setTipoPago]=useState('Todos');
-  const [selPais,setSelPais]=useState('Todos');
+  const [tipoPago,setTipoPago]=useState([]);
+  const [selPais,setSelPais]=useState([]);
   const [selTC,setSelTC]=useState([]);
-  const pasaTP = r => (tipoPago==='Todos'||r.tipo_pago===tipoPago) && (selPais==='Todos'||r.pais_agrupado===selPais) && (selTC.length===0||selTC.includes(r.tipo_cliente));
+  const pasaTP = r => (tipoPago.length===0||tipoPago.includes(r.tipo_pago)) && (selPais.length===0||selPais.includes(r.pais_agrupado)) && (selTC.length===0||selTC.includes(r.tipo_cliente));
   const cPaisOpts = ['Todos', ...Array.from(new Set((data||[]).map(r=>r.pais_agrupado).filter(Boolean))).sort()];
   const cTcOpts   = ['Todos', ...Array.from(new Set((data||[]).map(r=>r.tipo_cliente).filter(Boolean))).sort()];
 
@@ -1090,19 +1086,9 @@ function CancelacionesTab({data, nuevos=[]}){
     <>
       {/* Filtros */}
       <div className="sticky-filters" style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:10,marginBottom:14,flexWrap:'wrap'}}>
-        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:13,color:'#555',fontWeight:600}}>
-          País:
-          <select value={selPais} onChange={e=>setSelPais(e.target.value)} style={{fontFamily:'inherit',fontSize:12,padding:'6px 8px',borderRadius:8,border:'1px solid #e5e7eb',background:'#fff',color:'#111',maxWidth:190}}>
-            {cPaisOpts.map(o=><option key={o} value={o}>{o}</option>)}
-          </select>
-        </label>
+        <MultiSelect label="País" options={cPaisOpts.filter(o=>o!=='Todos')} value={selPais} onChange={setSelPais}/>
         <MultiSelect label="Tipo cliente" options={cTcOpts.filter(o=>o!=='Todos')} value={selTC} onChange={setSelTC}/>
-        <span style={{fontSize:13,color:'#555',fontWeight:600}}>Tipo de pago:</span>
-        <div className="gran-selector">
-          {['Todos','Cuotas','Recurrencia'].map(o=>(
-            <button key={o} className={`gran-btn${tipoPago===o?' active':''}`} onClick={()=>setTipoPago(o)}>{o}</button>
-          ))}
-        </div>
+        <MultiSelect label="Tipo pago" options={['Cuotas','Recurrencia']} value={tipoPago} onChange={setTipoPago}/>
       </div>
 
       {/* KPIs */}
@@ -3026,10 +3012,10 @@ function FacturacionTab({data}){
   const fmt = n => n==null?'—':Number(n).toLocaleString('es-CO',{maximumFractionDigits:0});
   const fmtUSD = n => n==null?'—':'$'+Number(n).toLocaleString('es-CO',{maximumFractionDigits:0});
   const mesCorto = m => { try{return new Date(m+'-01T00:00:00').toLocaleDateString('es',{month:'short',year:'2-digit'});}catch{return m;} };
-  const [pais,setPais]=useState('Todos');
+  const [pais,setPais]=useState([]);
   const [tipoCli,setTipoCli]=useState([]);
-  const [tipoPago,setTipoPago]=useState('Todos');
-  const [tipoVenta,setTipoVenta]=useState('Todos');
+  const [tipoPago,setTipoPago]=useState([]);
+  const [tipoVenta,setTipoVenta]=useState([]);
   const [modo,setModo]=useState('num');
   const [colap,setColap]=useState({up:false,canc:false,rec:false});
   const [selCohorte,setSelCohorte]=useState(null);
@@ -3037,7 +3023,7 @@ function FacturacionTab({data}){
   const [modoPagos,setModoPagos]=useState('num');
   const [modoSem,setModoSem]=useState('acum');
   const [rangoCohorte,setRangoCohorte]=useState({from:'2025-01',to:''});
-  const togglePais=v=>setPais(p=>p===v?'Todos':v);
+  const togglePais=v=>setPais(p=>p.includes(v)?p.filter(x=>x!==v):[...p,v]);
   const toggleTipoCli=v=>setTipoCli(p=>p.includes(v)?p.filter(x=>x!==v):[...p,v]);
   const toggleCohorte=v=>setSelCohorte(p=>p===v?null:v);
 
@@ -3047,7 +3033,7 @@ function FacturacionTab({data}){
   const pagos=['Todos','Recurrencia','Cuotas'];
   const ventas=['Todos',...[...new Set(funnel.map(r=>r.tipo_venta))].filter(Boolean).sort()];
 
-  const matchFiltros=r=>(pais==='Todos'||r.pais===pais)&&(tipoCli.length===0||tipoCli.includes(r.tipo_cliente))&&(tipoPago==='Todos'||r.tipo_pago===tipoPago)&&(tipoVenta==='Todos'||r.tipo_venta===tipoVenta)&&(!selCohorte||r.cohorte===selCohorte)&&(!rangoCohorte.from||(r.cohorte&&r.cohorte>=rangoCohorte.from))&&(!rangoCohorte.to||(r.cohorte&&r.cohorte<=rangoCohorte.to));
+  const matchFiltros=r=>(pais.length===0||pais.includes(r.pais))&&(tipoCli.length===0||tipoCli.includes(r.tipo_cliente))&&(tipoPago.length===0||tipoPago.includes(r.tipo_pago))&&(tipoVenta.length===0||tipoVenta.includes(r.tipo_venta))&&(!selCohorte||r.cohorte===selCohorte)&&(!rangoCohorte.from||(r.cohorte&&r.cohorte>=rangoCohorte.from))&&(!rangoCohorte.to||(r.cohorte&&r.cohorte<=rangoCohorte.to));
   const fF=funnel.filter(matchFiltros);
   const fC=cohorte.filter(matchFiltros);
 
@@ -3105,7 +3091,7 @@ function FacturacionTab({data}){
   const grupos=[
     {key:'general',name:'General',bg:'#fff',hbg:'#fff',cols:[
       {h:'Cohorte',align:'left',sticky:true,get:r=> r._sub
-        ? <span onClick={()=>togglePais(r.pais)} style={{paddingLeft:20,color:pais===r.pais?'#111':'#6b7280',cursor:'pointer',fontWeight:pais===r.pais?700:400}} title="Filtrar por país">{r.pais}</span>
+        ? <span onClick={()=>togglePais(r.pais)} style={{paddingLeft:20,color:pais.includes(r.pais)?'#111':'#6b7280',cursor:'pointer',fontWeight:pais.includes(r.pais)?700:400}} title="Filtrar por país">{r.pais}</span>
         : <span style={{display:'inline-flex',alignItems:'center',gap:5}}><span onClick={e=>{e.stopPropagation();setExpRows(p=>({...p,[r.cohorte]:!p[r.cohorte]}));}} style={{cursor:'pointer',color:'#9ca3af',width:10,fontSize:11}}>{expRows[r.cohorte]?'▾':'▸'}</span><span onClick={()=>toggleCohorte(r.cohorte)} style={{cursor:'pointer',color:selCohorte===r.cohorte?'#a07000':'#111',textDecoration:selCohorte===r.cohorte?'underline':'none'}} title="Filtrar por cohorte">{mesCorto(r.cohorte)}</span></span>},
       {h:'Sales',get:r=>fmt(r.sales)},{h:'Facturas',get:r=>fmt(r.facturas)},{h:'Importe',get:r=>fmtUSD(r.importe)},
       {h:'Ticket',get:r=>fmtUSD(r.ticket)},{h:'Meta a hoy',get:r=>fmtUSD(r.meta)},{h:'Proyección',get:r=>pctTxt(r.proy)},
@@ -3137,23 +3123,23 @@ function FacturacionTab({data}){
   );
 
   const chip=(label,onClear)=><span style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:11.5,fontWeight:600,padding:'4px 10px',borderRadius:20,background:'#fffbe6',border:'1px solid #ffe9a8',color:'#92700a'}}>{label}<span onClick={onClear} style={{cursor:'pointer',color:'#b45454',fontWeight:700}}>✕</span></span>;
-  const hayFiltros = pais!=='Todos'||tipoCli.length>0||tipoPago!=='Todos'||tipoVenta!=='Todos'||selCohorte;
+  const hayFiltros = pais.length>0||tipoCli.length>0||tipoPago.length>0||tipoVenta.length>0||selCohorte;
 
   return(<>
     <div className="sticky-filters" style={{display:'flex',gap:14,flexWrap:'wrap',marginBottom:hayFiltros?10:16,alignItems:'center'}}>
-      {sel(pais,setPais,paises,'País:')}<MultiSelect label="Tipo cliente" options={tipos.filter(o=>o!=='Todos')} value={tipoCli} onChange={setTipoCli}/>{sel(tipoPago,setTipoPago,pagos,'Tipo pago:')}{sel(tipoVenta,setTipoVenta,ventas,'Tipo venta:')}
+      <MultiSelect label="País" options={paises.filter(o=>o!=='Todos')} value={pais} onChange={setPais}/><MultiSelect label="Tipo cliente" options={tipos.filter(o=>o!=='Todos')} value={tipoCli} onChange={setTipoCli}/><MultiSelect label="Tipo pago" options={pagos.filter(o=>o!=='Todos')} value={tipoPago} onChange={setTipoPago}/><MultiSelect label="Tipo venta" options={ventas.filter(o=>o!=='Todos')} value={tipoVenta} onChange={setTipoVenta}/>
       <span style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12,color:'#555'}}>Cohorte: <MonthRangePicker value={rangoCohorte} onChange={setRangoCohorte} align="right"/></span>
       <span style={{fontSize:11,color:'#9ca3af'}}>· clic en cohortes, países o barras para filtrar la hoja</span>
     </div>
     {hayFiltros&&(
     <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:16,alignItems:'center'}}>
       <span style={{fontSize:11,color:'#9ca3af',fontWeight:600}}>Filtros activos:</span>
-      {pais!=='Todos'&&chip('País: '+pais,()=>setPais('Todos'))}
+      {pais.length>0&&chip('País: '+(pais.length===1?pais[0]:pais.length+' sel.'),()=>setPais([]))}
       {tipoCli.length>0&&chip('Cliente: '+(tipoCli.length===1?tipoCli[0]:tipoCli.length+' sel.'),()=>setTipoCli([]))}
-      {tipoPago!=='Todos'&&chip('Pago: '+tipoPago,()=>setTipoPago('Todos'))}
-      {tipoVenta!=='Todos'&&chip('Venta: '+tipoVenta,()=>setTipoVenta('Todos'))}
+      {tipoPago.length>0&&chip('Pago: '+(tipoPago.length===1?tipoPago[0]:tipoPago.length+' sel.'),()=>setTipoPago([]))}
+      {tipoVenta.length>0&&chip('Venta: '+(tipoVenta.length===1?tipoVenta[0]:tipoVenta.length+' sel.'),()=>setTipoVenta([]))}
       {selCohorte&&chip('Cohorte: '+mesCorto(selCohorte),()=>setSelCohorte(null))}
-      <span onClick={()=>{setPais('Todos');setTipoCli([]);setTipoPago('Todos');setTipoVenta('Todos');setSelCohorte(null);setRangoCohorte({from:'2025-01',to:''});}} style={{fontSize:11,color:'#6366f1',cursor:'pointer',marginLeft:4}}>Limpiar todo</span>
+      <span onClick={()=>{setPais([]);setTipoCli([]);setTipoPago([]);setTipoVenta([]);setSelCohorte(null);setRangoCohorte({from:'2025-01',to:''});}} style={{fontSize:11,color:'#6366f1',cursor:'pointer',marginLeft:4}}>Limpiar todo</span>
     </div>
     )}
 
