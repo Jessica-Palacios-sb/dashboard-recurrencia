@@ -7,8 +7,8 @@ import {
 import './App.css';
 
 const API_URL = '/api/recurrencia';
-const COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4'];
-const PROC_COLORS = { 'Recurrencia':'#FFD700','Cobranza':'#111111','Up-Selling':'#3B82F6','Bootcamp & Cross':'#10B981','Comeback':'#F97316','Cuotas Mentorías':'#A855F7' };
+const COLORS = ['#3B82F6','#22C55E','#EF4444','#F97316','#8B5CF6','#1A1A1A'];
+const PROC_COLORS = { 'Recurrencia':'#FFD400','Cobranza':'#111111','Up-Selling':'#3B82F6','Bootcamp & Cross':'#10B981','Comeback':'#F97316','Cuotas Mentorías':'#A855F7' };
 
 function getGranKey(dateStr, gran) {
   if(!dateStr) return null;
@@ -82,8 +82,8 @@ function DateRangePicker({desde,hasta,onChange,titulo='Fecha'}){
   return(
     <div className="drp-wrapper" ref={ref}>
       <button className={`filter-btn${(desde||hasta)?' active':''}`} onClick={()=>setOpen(o=>!o)}>
-        <span className="filter-btn-label">{titulo}</span>
-        <span className="filter-btn-value">{label}</span>
+        <span className="filter-btn-tag">{titulo}:</span>
+        <span className="filter-btn-val">{label}</span>
         <span className="filter-btn-arrow">▾</span>
       </button>
       {open&&(
@@ -135,11 +135,13 @@ function FilterSelect({label,value,options,onChange,allLabel,multi=false}){
     if(value.includes(o)) onChange(value.filter(x=>x!==o));
     else onChange([...value,o]);
   };
+  const valTxt=multi?(value.length===0?'Todos':value.length===1?value[0]:value.length+' sel.'):(value==='Todos'?'Todos':value);
   return(
     <div className="filter-wrapper" ref={wrapRef}>
       <button className={`filter-btn${isActive?' active':''}`} onClick={()=>setOpen(o=>!o)}>
-        <span className="filter-btn-label">{displayLabel}</span>
-        <span>▾</span>
+        <span className="filter-btn-tag">{label}:</span>
+        <span className="filter-btn-val">{valTxt}</span>
+        <span className="filter-btn-arrow">▾</span>
       </button>
       {open&&(
         <div className="filter-dropdown">
@@ -153,7 +155,7 @@ function FilterSelect({label,value,options,onChange,allLabel,multi=false}){
                 <button key={o} className={`filter-option${value.includes(o)?' selected':''}`}
                   onClick={()=>toggleMulti(o)}
                   style={{display:'flex',alignItems:'center',gap:8}}>
-                  <span style={{width:14,height:14,border:'1.5px solid #ddd',borderRadius:3,background:value.includes(o)?'#FFD700':'transparent',flexShrink:0,display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:10,color:'#1a1600'}}>
+                  <span style={{width:14,height:14,border:'1.5px solid #D8DAE0',borderRadius:4,background:value.includes(o)?'#FFD400':'transparent',flexShrink:0,display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:10,color:'#3A2E00'}}>
                     {value.includes(o)?'✓':''}
                   </span>
                   {o}
@@ -340,23 +342,41 @@ function MonthRangePicker({value={from:'',to:''},onChange}){
   );
 }
 
-function KPICard({label,value,sub,tooltip}){
+function KPICard({label,value,sub,tooltip,icon=null,color='#9598A1'}){
   const [show,setShow]=useState(false);
   return(
     <div className="kpi-card">
-      <div className="kpi-label">
-        {label}
-        {tooltip&&(
-          <span className="kpi-info" onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}>
-            ?{show&&<span className="kpi-tooltip">{tooltip}</span>}
-          </span>
-        )}
+      <div className="kpi-top">
+        <div className="kpi-label">
+          {label}
+          {tooltip&&(
+            <span className="kpi-info" onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}>
+              ?{show&&<span className="kpi-tooltip">{tooltip}</span>}
+            </span>
+          )}
+        </div>
+        {icon&&<span className="kpi-ic" style={{background:color+'1f',color}}>{icon}</span>}
       </div>
       <div className="kpi-value">{value}</div>
       {sub&&<div className="kpi-sub">{sub}</div>}
     </div>
   );
 }
+
+// Íconos opcionales para KPICards (inline SVG, 15px)
+const KI = {
+  factura:  <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M3 1.5h6l3 3V13a.5.5 0 0 1-.5.5h-8A.5.5 0 0 1 3 13z"/><path d="M8.5 1.5V4.5h3"/><path d="M5 7.5h5M5 10h3"/></svg>,
+  cash:     <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><rect x="1.5" y="3.5" width="12" height="8" rx="1.5"/><circle cx="7.5" cy="7.5" r="2"/></svg>,
+  pct:      <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><path d="M2.5 12.5l10-10"/><circle cx="4" cy="4" r="1.6"/><circle cx="11" cy="11" r="1.6"/></svg>,
+  users:    <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><circle cx="5.5" cy="4.5" r="2.5"/><path d="M1 13c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4"/><circle cx="11.5" cy="5.5" r="2"/><path d="M11 13c0-1.5.8-2.8 2.5-3.5"/></svg>,
+  ticket:   <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 2.5h8l2 2V13l-1.3-.9-1.3.9-1.3-.9-1.3.9-1.3-.9-1.3.9z"/><path d="M5 6h5M5 8.5h3"/></svg>,
+  scale:    <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M7.5 2v11M3 13h9"/><path d="M2 6l2.5-2.2L7 6M8 6l2.5-2.2L13 6"/></svg>,
+  trend:    <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2 11L6 7l3 3 4-5"/><path d="M10 6h3v3"/></svg>,
+  clock:    <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><circle cx="7.5" cy="7.5" r="5.5"/><path d="M7.5 4.5v3l2 1.5"/></svg>,
+  alert:    <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M7.5 2L1.5 12.5h12z"/><path d="M7.5 6.5v2.5M7.5 11h.01"/></svg>,
+  money:    <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><path d="M7.5 2v11"/><path d="M10 4.5c0-1-1.1-1.8-2.5-1.8S5 3.5 5 4.7c0 2.8 5 1.4 5 4.2 0 1.2-1.1 2-2.5 2S5 10.1 5 9.1"/></svg>,
+  repeat:   <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2 7.5a5.5 5.5 0 0 1 9.5-3.8"/><path d="M13 7.5a5.5 5.5 0 0 1-9.5 3.8"/><path d="M10.5 3l1.5 1-1 1.5"/><path d="M4.5 12l-1.5-1 1-1.5"/></svg>,
+};
 
 function SectionTitle({children}){return <h2 className="section-title">{children}</h2>;}
 
@@ -551,32 +571,32 @@ function ChurnTab({data}){
       {/* KPIs */}
       <div className="kpi-grid">
         <div className="kpi-card">
-          <div className="kpi-label">Nuevos clientes</div>
+          <div className="kpi-top"><div className="kpi-label">Nuevos clientes</div><span className="kpi-ic" style={{background:'#22C55E1f',color:'#22C55E'}}>{KI.users}</span></div>
           <div className="kpi-value" style={{color:'#10b981'}}>{fmt(totalNuevos)}</div>
           <div className="kpi-sub">Altas por primer cierre de suscripción</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Cancelaciones totales</div>
+          <div className="kpi-top"><div className="kpi-label">Cancelaciones totales</div><span className="kpi-ic" style={{background:'#EF44441f',color:'#EF4444'}}>{KI.alert}</span></div>
           <div className="kpi-value" style={{color:'#ef4444'}}>{fmt(totalCancel)}</div>
           <div className="kpi-sub">En el período seleccionado</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Tasa churn promedio</div>
+          <div className="kpi-top"><div className="kpi-label">Tasa churn promedio</div><span className="kpi-ic" style={{background:'#F973161f',color:'#F97316'}}>{KI.pct}</span></div>
           <div className="kpi-value" style={{color:avgTasa>10?'#ef4444':avgTasa>5?'#f59e0b':'#10b981'}}>{fmtPct(avgTasa)}</div>
           <div className="kpi-sub">Mensual histórico</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Tasa churn último mes</div>
+          <div className="kpi-top"><div className="kpi-label">Tasa churn último mes</div><span className="kpi-ic" style={{background:'#F973161f',color:'#F97316'}}>{KI.pct}</span></div>
           <div className="kpi-value" style={{color:lastTasa?.tasa>10?'#ef4444':lastTasa?.tasa>5?'#f59e0b':'#10b981'}}>{lastTasa?fmtPct(lastTasa.tasa):'—'}</div>
           <div className="kpi-sub">{lastTasa?.mes||''}</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Cancelan por mora</div>
+          <div className="kpi-top"><div className="kpi-label">Cancelan por mora</div><span className="kpi-ic" style={{background:'#EF44441f',color:'#EF4444'}}>{KI.clock}</span></div>
           <div className="kpi-value" style={{color:'#ef4444'}}>{fmtPct(totalCancel>0?totalPorMora/totalCancel*100:0)}</div>
           <div className="kpi-sub">{fmt(totalPorMora)} casos</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Neto acumulado</div>
+          <div className="kpi-top"><div className="kpi-label">Neto acumulado</div><span className="kpi-ic" style={{background:'#3B82F61f',color:'#3B82F6'}}>{KI.trend}</span></div>
           <div className="kpi-value" style={{color:totalNuevos-totalCancel>=0?'#10b981':'#ef4444'}}>{totalNuevos-totalCancel>=0?'+':''}{fmt(totalNuevos-totalCancel)}</div>
           <div className="kpi-sub">Nuevos − cancelaciones</div>
         </div>
@@ -1088,32 +1108,32 @@ function CancelacionesTab({data, nuevos=[]}){
       {/* KPIs */}
       <div className="kpi-grid">
         <div className="kpi-card">
-          <div className="kpi-label">Total cancelaciones</div>
+          <div className="kpi-top"><div className="kpi-label">Total cancelaciones</div><span className="kpi-ic" style={{background:'#EF44441f',color:'#EF4444'}}>{KI.alert}</span></div>
           <div className="kpi-value" style={{color:'#ef4444'}}>{fmt(totalCancel)}</div>
           <div className="kpi-sub">En el período seleccionado</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Por mora</div>
+          <div className="kpi-top"><div className="kpi-label">Por mora</div><span className="kpi-ic" style={{background:'#EF44441f',color:'#EF4444'}}>{KI.clock}</span></div>
           <div className="kpi-value" style={{color:'#ef4444'}}>{fmtPct(moraPct)}</div>
           <div className="kpi-sub">{fmt(porTipo['Por mora']?.n||0)} suscripciones</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Voluntarias</div>
+          <div className="kpi-top"><div className="kpi-label">Voluntarias</div><span className="kpi-ic" style={{background:'#F973161f',color:'#F97316'}}>{KI.users}</span></div>
           <div className="kpi-value" style={{color:'#f59e0b'}}>{fmtPct(voluntariaPct)}</div>
           <div className="kpi-sub">{fmt(porTipo['Voluntaria']?.n||0)} suscripciones</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Duración promedio</div>
+          <div className="kpi-top"><div className="kpi-label">Duración promedio</div><span className="kpi-ic" style={{background:'#8B5CF61f',color:'#8B5CF6'}}>{KI.clock}</span></div>
           <div className="kpi-value" style={{color:'#6366f1'}}>{avgMeses.toFixed(1)} meses</div>
           <div className="kpi-sub">Antes de cancelar</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Momento más crítico</div>
+          <div className="kpi-top"><div className="kpi-label">Momento más crítico</div><span className="kpi-ic" style={{background:'#F973161f',color:'#F97316'}}>{KI.alert}</span></div>
           <div className="kpi-value" style={{color:'#f59e0b'}}>{bucketMax.rango}</div>
           <div className="kpi-sub">{fmtPct(bucketMaxPct)} de todas las cancelaciones</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Chargeback</div>
+          <div className="kpi-top"><div className="kpi-label">Chargeback</div><span className="kpi-ic" style={{background:'#8B5CF61f',color:'#8B5CF6'}}>{KI.money}</span></div>
           <div className="kpi-value" style={{color:'#8b5cf6'}}>{fmtPct(porTipo['Chargeback']?porTipo['Chargeback'].n/totalCancel*100:0)}</div>
           <div className="kpi-sub">{fmt(porTipo['Chargeback']?.n||0)} casos</div>
         </div>
@@ -1782,29 +1802,29 @@ function SaludTab({data, pais=[], tipoPago='Todos', rango={from:'',to:''}, loadi
       {/* KPIs salud */}
       <div className="kpi-grid">
         <div className="kpi-card">
-          <div className="kpi-label">Retención promedio</div>
+          <div className="kpi-top"><div className="kpi-label">Retención promedio</div><span className="kpi-ic" style={{background:'#22C55E1f',color:'#22C55E'}}>{KI.repeat}</span></div>
           <div className="kpi-value" style={{color:avgRet>=70?'#10b981':avgRet>=60?'#f59e0b':'#ef4444'}}>{fmtPct(avgRet)}</div>
           <div className="kpi-sub">Promedio histórico mensual</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Retención último mes</div>
+          <div className="kpi-top"><div className="kpi-label">Retención último mes</div><span className="kpi-ic" style={{background:'#22C55E1f',color:'#22C55E'}}>{KI.repeat}</span></div>
           <div className="kpi-value" style={{color:lastRet?.tasa>=70?'#10b981':lastRet?.tasa>=60?'#f59e0b':'#ef4444'}}>{lastRet?fmtPct(lastRet.tasa):'—'}</div>
           <div className="kpi-sub">{lastRet?`${lastRet.retenidos} de ${lastRet.clientes} clientes`:''}</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Ticket promedio actual</div>
+          <div className="kpi-top"><div className="kpi-label">Ticket promedio actual</div><span className="kpi-ic" style={{background:'#3B82F61f',color:'#3B82F6'}}>{KI.ticket}</span></div>
           <div className="kpi-value" style={{color:'#6366f1'}}>{fmtUSD(lastTicket)}</div>
           <div className="kpi-sub" style={{color:lastTicket<firstTicket?'#ef4444':'#10b981'}}>
             {firstTicket>0?`${lastTicket<firstTicket?'▼':'▲'} ${Math.abs(((lastTicket-firstTicket)/firstTicket)*100).toFixed(1)}% vs inicio`:''}
           </div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Facturas no cobradas</div>
+          <div className="kpi-top"><div className="kpi-label">Facturas no cobradas</div><span className="kpi-ic" style={{background:'#EF44441f',color:'#EF4444'}}>{KI.alert}</span></div>
           <div className="kpi-value" style={{color:'#ef4444'}}>{fmtPct(pctNoPagado)}</div>
           <div className="kpi-sub">{fmtUSD(totalNoPagado)} sin recuperar</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">No llegan a recurrencia</div>
+          <div className="kpi-top"><div className="kpi-label">No llegan a recurrencia</div><span className="kpi-ic" style={{background:'#F973161f',color:'#F97316'}}>{KI.alert}</span></div>
           <div className="kpi-value" style={{color:avgNoRecurre==null?'#94a3b8':avgNoRecurre>=50?'#ef4444':avgNoRecurre>=30?'#f59e0b':'#10b981'}}>
             {avgNoRecurre!=null?avgNoRecurre+'%':'—'}
           </div>
@@ -1991,24 +2011,24 @@ function SaludTab({data, pais=[], tipoPago='Todos', rango={from:'',to:''}, loadi
         {/* KPIs globales LTV */}
         <div className="kpi-grid" style={{marginBottom:20}}>
           <div className="kpi-card">
-            <div className="kpi-label">LTV global estimado</div>
+            <div className="kpi-top"><div className="kpi-label">LTV global estimado</div><span className="kpi-ic" style={{background:'#8B5CF61f',color:'#8B5CF6'}}>{KI.money}</span></div>
             <div className="kpi-value" style={{color:'#6366f1'}}>{fmtUSD(ltvData.global.ltv)}</div>
             <div className="kpi-sub">Valor promedio por cliente</div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-label">Ticket promedio (últ. 3m)</div>
+            <div className="kpi-top"><div className="kpi-label">Ticket promedio (últ. 3m)</div><span className="kpi-ic" style={{background:'#22C55E1f',color:'#22C55E'}}>{KI.ticket}</span></div>
             <div className="kpi-value" style={{color:'#10b981'}}>{fmtUSD(ltvData.global.ticket)}</div>
             <div className="kpi-sub">Promedio últimos 3 meses</div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-label">Retención mensual equiv.</div>
+            <div className="kpi-top"><div className="kpi-label">Retención mensual equiv.</div><span className="kpi-ic" style={{background:'#22C55E1f',color:'#22C55E'}}>{KI.repeat}</span></div>
             <div className="kpi-value" style={{color:ltvData.global.retMensual>=70?'#10b981':ltvData.global.retMensual>=60?'#f59e0b':'#ef4444'}}>
               {ltvData.global.retMensual!=null?ltvData.global.retMensual.toFixed(1)+'%':'—'}
             </div>
             <div className="kpi-sub">Derivada de retención M+6</div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-label">Meses para recuperar</div>
+            <div className="kpi-top"><div className="kpi-label">Meses para recuperar</div><span className="kpi-ic" style={{background:'#F973161f',color:'#F97316'}}>{KI.clock}</span></div>
             <div className="kpi-value" style={{color:'#f59e0b'}}>{ltvData.global.mesesRecupero||'—'}</div>
             <div className="kpi-sub">A partir de 2ª factura</div>
           </div>
@@ -2089,17 +2109,17 @@ function SaludTab({data, pais=[], tipoPago='Todos', rango={from:'',to:''}, loadi
             {/* KPIs globales CAC */}
             <div className="kpi-grid" style={{marginBottom:20}}>
               <div className="kpi-card">
-                <div className="kpi-label">CAC global (últ. 3m)</div>
+                <div className="kpi-top"><div className="kpi-label">CAC global (últ. 3m)</div><span className="kpi-ic" style={{background:'#3B82F61f',color:'#3B82F6'}}>{KI.money}</span></div>
                 <div className="kpi-value" style={{color:'#6366f1'}}>{fmtUSD(cacData.global.cac)}</div>
                 <div className="kpi-sub">Costo por cliente adquirido</div>
               </div>
               <div className="kpi-card">
-                <div className="kpi-label">Spend total (últ. 3m)</div>
+                <div className="kpi-top"><div className="kpi-label">Spend total (últ. 3m)</div><span className="kpi-ic" style={{background:'#8B5CF61f',color:'#8B5CF6'}}>{KI.cash}</span></div>
                 <div className="kpi-value" style={{color:'#374151'}}>{fmtUSD(cacData.global.spend)}</div>
                 <div className="kpi-sub">{cacData.global.nuevos?.toLocaleString('es-CO')} clientes adquiridos</div>
               </div>
               <div className="kpi-card">
-                <div className="kpi-label">LTV / CAC</div>
+                <div className="kpi-top"><div className="kpi-label">LTV / CAC</div><span className="kpi-ic" style={{background:'#22C55E1f',color:'#22C55E'}}>{KI.scale}</span></div>
                 <div className="kpi-value" style={{color:
                   cacData.global.ltvCacRatio>=3?'#10b981':
                   cacData.global.ltvCacRatio>=1?'#f59e0b':'#ef4444'}}>
@@ -2111,7 +2131,7 @@ function SaludTab({data, pais=[], tipoPago='Todos', rango={from:'',to:''}, loadi
                 </div>
               </div>
               <div className="kpi-card">
-                <div className="kpi-label">Payback global</div>
+                <div className="kpi-top"><div className="kpi-label">Payback global</div><span className="kpi-ic" style={{background:'#F973161f',color:'#F97316'}}>{KI.clock}</span></div>
                 <div className="kpi-value" style={{color:'#f59e0b'}}>
                   {cacData.global.cac&&ltvData.global.ticket
                     ? Math.ceil(cacData.global.cac/ltvData.global.ticket)+' meses'
@@ -3007,7 +3027,7 @@ function FacturacionTab({data}){
   const fmtUSD = n => n==null?'—':'$'+Number(n).toLocaleString('es-CO',{maximumFractionDigits:0});
   const mesCorto = m => { try{return new Date(m+'-01T00:00:00').toLocaleDateString('es',{month:'short',year:'2-digit'});}catch{return m;} };
   const [pais,setPais]=useState('Todos');
-  const [tipoCli,setTipoCli]=useState('Todos');
+  const [tipoCli,setTipoCli]=useState([]);
   const [tipoPago,setTipoPago]=useState('Todos');
   const [tipoVenta,setTipoVenta]=useState('Todos');
   const [modo,setModo]=useState('num');
@@ -3015,8 +3035,10 @@ function FacturacionTab({data}){
   const [selCohorte,setSelCohorte]=useState(null);
   const [expRows,setExpRows]=useState({});
   const [modoPagos,setModoPagos]=useState('num');
+  const [modoSem,setModoSem]=useState('acum');
+  const [rangoCohorte,setRangoCohorte]=useState({from:'2025-01',to:''});
   const togglePais=v=>setPais(p=>p===v?'Todos':v);
-  const toggleTipoCli=v=>setTipoCli(p=>p===v?'Todos':v);
+  const toggleTipoCli=v=>setTipoCli(p=>p.includes(v)?p.filter(x=>x!==v):[...p,v]);
   const toggleCohorte=v=>setSelCohorte(p=>p===v?null:v);
 
   const funnel=data.funnel||[], cohorte=data.cohorte||[];
@@ -3025,7 +3047,7 @@ function FacturacionTab({data}){
   const pagos=['Todos','Recurrencia','Cuotas'];
   const ventas=['Todos',...[...new Set(funnel.map(r=>r.tipo_venta))].filter(Boolean).sort()];
 
-  const matchFiltros=r=>(pais==='Todos'||r.pais===pais)&&(tipoCli==='Todos'||r.tipo_cliente===tipoCli)&&(tipoPago==='Todos'||r.tipo_pago===tipoPago)&&(tipoVenta==='Todos'||r.tipo_venta===tipoVenta)&&(!selCohorte||r.cohorte===selCohorte);
+  const matchFiltros=r=>(pais==='Todos'||r.pais===pais)&&(tipoCli.length===0||tipoCli.includes(r.tipo_cliente))&&(tipoPago==='Todos'||r.tipo_pago===tipoPago)&&(tipoVenta==='Todos'||r.tipo_venta===tipoVenta)&&(!selCohorte||r.cohorte===selCohorte)&&(!rangoCohorte.from||(r.cohorte&&r.cohorte>=rangoCohorte.from))&&(!rangoCohorte.to||(r.cohorte&&r.cohorte<=rangoCohorte.to));
   const fF=funnel.filter(matchFiltros);
   const fC=cohorte.filter(matchFiltros);
 
@@ -3115,30 +3137,31 @@ function FacturacionTab({data}){
   );
 
   const chip=(label,onClear)=><span style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:11.5,fontWeight:600,padding:'4px 10px',borderRadius:20,background:'#fffbe6',border:'1px solid #ffe9a8',color:'#92700a'}}>{label}<span onClick={onClear} style={{cursor:'pointer',color:'#b45454',fontWeight:700}}>✕</span></span>;
-  const hayFiltros = pais!=='Todos'||tipoCli!=='Todos'||tipoPago!=='Todos'||tipoVenta!=='Todos'||selCohorte;
+  const hayFiltros = pais!=='Todos'||tipoCli.length>0||tipoPago!=='Todos'||tipoVenta!=='Todos'||selCohorte;
 
   return(<>
     <div style={{display:'flex',gap:14,flexWrap:'wrap',marginBottom:hayFiltros?10:16,alignItems:'center'}}>
-      {sel(pais,setPais,paises,'País:')}{sel(tipoCli,setTipoCli,tipos,'Tipo cliente:')}{sel(tipoPago,setTipoPago,pagos,'Tipo pago:')}{sel(tipoVenta,setTipoVenta,ventas,'Tipo venta:')}
+      {sel(pais,setPais,paises,'País:')}<MultiSelect label="Tipo cliente" options={tipos.filter(o=>o!=='Todos')} value={tipoCli} onChange={setTipoCli}/>{sel(tipoPago,setTipoPago,pagos,'Tipo pago:')}{sel(tipoVenta,setTipoVenta,ventas,'Tipo venta:')}
+      <span style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12,color:'#555'}}>Cohorte: <MonthRangePicker value={rangoCohorte} onChange={setRangoCohorte}/></span>
       <span style={{fontSize:11,color:'#9ca3af'}}>· clic en cohortes, países o barras para filtrar la hoja</span>
     </div>
     {hayFiltros&&(
     <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:16,alignItems:'center'}}>
       <span style={{fontSize:11,color:'#9ca3af',fontWeight:600}}>Filtros activos:</span>
       {pais!=='Todos'&&chip('País: '+pais,()=>setPais('Todos'))}
-      {tipoCli!=='Todos'&&chip('Cliente: '+tipoCli,()=>setTipoCli('Todos'))}
+      {tipoCli.length>0&&chip('Cliente: '+(tipoCli.length===1?tipoCli[0]:tipoCli.length+' sel.'),()=>setTipoCli([]))}
       {tipoPago!=='Todos'&&chip('Pago: '+tipoPago,()=>setTipoPago('Todos'))}
       {tipoVenta!=='Todos'&&chip('Venta: '+tipoVenta,()=>setTipoVenta('Todos'))}
       {selCohorte&&chip('Cohorte: '+mesCorto(selCohorte),()=>setSelCohorte(null))}
-      <span onClick={()=>{setPais('Todos');setTipoCli('Todos');setTipoPago('Todos');setTipoVenta('Todos');setSelCohorte(null);}} style={{fontSize:11,color:'#6366f1',cursor:'pointer',marginLeft:4}}>Limpiar todo</span>
+      <span onClick={()=>{setPais('Todos');setTipoCli([]);setTipoPago('Todos');setTipoVenta('Todos');setSelCohorte(null);setRangoCohorte({from:'2025-01',to:''});}} style={{fontSize:11,color:'#6366f1',cursor:'pointer',marginLeft:4}}>Limpiar todo</span>
     </div>
     )}
 
     <div className="kpi-grid">
-      <KPICard label="Streams detenidos (fugas)" value={fmt(total)} sub="oportunidades que dejaron de facturar" tooltip="Última invoice de cada oportunidad cuyo stream se detuvo por upgrade, cancelación o mora."/>
-      <KPICard label="Por mora (recuperable)" value={total>0?(mora/total*100).toFixed(1)+'%':'—'} sub={`${fmt(mora)} · ${fmtUSD(cashMora)} en riesgo`} tooltip="Cancelación por mora + en mora sin cancelar. Recuperable con cobranza temprana."/>
-      <KPICard label="Upgrade (esperado)" value={fmt(upg)} sub="cambiaron de plan · no es fuga real"/>
-      <KPICard label="En mora sin cancelar" value={fmt(enMora)} sub="atascadas · accionable hoy"/>
+      <KPICard label="Streams detenidos (fugas)" value={fmt(total)} sub="oportunidades que dejaron de facturar" color="#EF4444" icon={KI.alert} tooltip="Última invoice de cada oportunidad cuyo stream se detuvo por upgrade, cancelación o mora."/>
+      <KPICard label="Por mora (recuperable)" value={total>0?(mora/total*100).toFixed(1)+'%':'—'} sub={`${fmt(mora)} · ${fmtUSD(cashMora)} en riesgo`} color="#F97316" icon={KI.clock} tooltip="Cancelación por mora + en mora sin cancelar. Recuperable con cobranza temprana."/>
+      <KPICard label="Upgrade (esperado)" value={fmt(upg)} sub="cambiaron de plan · no es fuga real" color="#3B82F6" icon={KI.trend}/>
+      <KPICard label="En mora sin cancelar" value={fmt(enMora)} sub="atascadas · accionable hoy" color="#EF4444" icon={KI.clock}/>
     </div>
 
     <section className="chart-section">
@@ -3217,6 +3240,49 @@ function FacturacionTab({data}){
     </section>
 
     <section className="chart-section">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:2,flexWrap:'wrap',gap:8}}>
+        <SectionTitle>% Pagado por cohorte × semana</SectionTitle>
+        <div className="gran-selector">
+          <button className={`gran-btn${modoSem==='acum'?' active':''}`} onClick={()=>setModoSem('acum')}>Acumulado</button>
+          <button className={`gran-btn${modoSem==='sem'?' active':''}`} onClick={()=>setModoSem('sem')}>Por semana</button>
+        </div>
+      </div>
+      <p style={{margin:'-2px 0 14px',fontSize:12,color:'#9ca3af'}}>Filas = mes de cierre · columnas = semanas desde el cierre (primeras 16). <b>% Pagado</b> = total pagado acumulado (pagos + cash up) ÷ importe — el acumulado final coincide con el "% Pagado" del Resumen. Modo <b>Por semana</b> = lo cobrado solo en esa semana.</p>
+      {(()=>{
+        const NW=16;
+        const psem=(data.pagosSemana||[]).filter(matchFiltros);
+        const impCoh={}; (data.resumen||[]).filter(matchFiltros).forEach(r=>{ impCoh[r.cohorte]=(impCoh[r.cohorte]||0)+(+r.importe||0); });
+        const cashCS={}, lastW={};
+        psem.forEach(r=>{ const c=r.cohorte, s=Math.min(+r.semana,NW-1); (cashCS[c]||(cashCS[c]={}))[s]=(cashCS[c][s]||0)+(+r.cash||0); lastW[c]=Math.max(lastW[c]??-1, s); });
+        const cohs=Object.keys(cashCS).filter(c=>impCoh[c]>0).sort();
+        if(cohs.length===0) return <div style={{fontSize:13,color:'#9ca3af',padding:'12px 0'}}>Sin datos para el filtro.</div>;
+        const M={}; let maxSemPct=0;
+        cohs.forEach(c=>{ const imp=impCoh[c]; let cum=0; M[c]=[]; for(let i=0;i<NW;i++){ const cash=(cashCS[c]||{})[i]||0; cum+=cash; const acum=imp>0?cum/imp*100:0, sem=imp>0?cash/imp*100:0; M[c][i]={acum,sem,has:i<=lastW[c]}; if(cell_ok(i,lastW[c])&&sem>maxSemPct)maxSemPct=sem; } });
+        function cell_ok(i,lw){return i<=lw;}
+        const colorFor=(pct,max)=>{ const t=max>0?pct/max:0; if(t>0.75)return '#CDEBD6'; if(t>0.6)return '#E3F4E8'; if(t>0.4)return '#FBE9D6'; if(t>0.22)return '#FBDCD9'; return '#F8CCC8'; };
+        const maxScale = modoSem==='acum'?100:Math.max(5,Math.ceil(maxSemPct));
+        return (
+        <div style={{overflowX:'auto'}}>
+          <table style={{borderCollapse:'separate',borderSpacing:3,fontSize:11}}>
+            <thead><tr><th></th>{Array.from({length:NW},(_,i)=><th key={i} style={{fontSize:10,color:'#888',fontWeight:600,padding:'3px 6px',whiteSpace:'nowrap'}}>S{i+1}</th>)}</tr></thead>
+            <tbody>
+              {cohs.map(co=>(
+                <tr key={co}>
+                  <td onClick={()=>toggleCohorte(co)} title="Filtrar la hoja por esta cohorte" style={{color:selCohorte===co?'#a07000':'#555',fontWeight:600,whiteSpace:'nowrap',paddingRight:8,fontSize:11,cursor:'pointer',textDecoration:selCohorte===co?'underline':'none'}}>{mesCorto(co)}</td>
+                  {M[co].map((cell,i)=> !cell.has
+                    ? <td key={i} style={{textAlign:'center',padding:'7px 6px',color:'#d1d5db'}}>·</td>
+                    : <td key={i} style={{textAlign:'center',padding:'7px 6px',borderRadius:5,background:colorFor(modoSem==='acum'?cell.acum:cell.sem,maxScale),fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap',fontWeight:600,color:'#123'}}>{Math.round(modoSem==='acum'?cell.acum:cell.sem)}%</td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        );
+      })()}
+    </section>
+
+    <section className="chart-section">
       <SectionTitle>Resumen por cohorte</SectionTitle>
       <p style={{margin:'-4px 0 14px',fontSize:12,color:'#9ca3af'}}>Por mes de cierre · secciones: General · <b style={{color:'#6b7280'}}>Up</b> · <b style={{color:'#b45454'}}>Cancelaciones</b> · Recurrencia · Total. Toca una banda de sección (▾/▸) para colapsarla a su % resumen.</p>
       {resRows.length===0 ? <div style={{fontSize:13,color:'#9ca3af',padding:'12px 0'}}>Sin datos para el filtro.</div> : (
@@ -3257,7 +3323,7 @@ function FacturacionTab({data}){
     <section className="chart-section">
       <SectionTitle>Fuga por tipo de cliente</SectionTitle>
       <p style={{margin:'-4px 0 14px',fontSize:12,color:'#9ca3af'}}>Composición de las detenciones por segmento.</p>
-      {tipoRows.map(r=>{const act=tipoCli===r.tipo;return(
+      {tipoRows.map(r=>{const act=tipoCli.includes(r.tipo);return(
         <div key={r.tipo} onClick={()=>toggleTipoCli(r.tipo)} title="Filtrar la hoja por este tipo de cliente" style={{display:'flex',alignItems:'center',gap:10,marginBottom:7,cursor:'pointer',padding:'3px 6px',marginLeft:-6,marginRight:-6,borderRadius:6,background:act?'#fffbe6':'transparent'}}>
           <span style={{width:150,fontSize:12,color:act?'#111':'#555',fontWeight:act?700:400,flexShrink:0}}>{r.tipo}</span>
           <span style={{flex:1,display:'flex',height:20,borderRadius:5,overflow:'hidden',background:'#f3f4f6'}}>
@@ -3432,10 +3498,10 @@ function App({authUser, onLogout}){
     }
     if(activeTab==='Facturación' && !facturacion && !facturacionLoading){
       setFacturacionLoading(true);
-      fetch('/api/facturacion').then(r=>r.json()).then(({funnel,cohorte,resumen,pagos,error})=>{
+      fetch('/api/facturacion').then(r=>r.json()).then(({funnel,cohorte,resumen,pagos,pagosSemana,error})=>{
         if(error)throw new Error(error);
-        setFacturacion({funnel:funnel||[], cohorte:cohorte||[], resumen:resumen||[], pagos:pagos||[]});
-      }).catch(()=>setFacturacion({funnel:[],cohorte:[],resumen:[],pagos:[]})).finally(()=>setFacturacionLoading(false));
+        setFacturacion({funnel:funnel||[], cohorte:cohorte||[], resumen:resumen||[], pagos:pagos||[], pagosSemana:pagosSemana||[]});
+      }).catch(()=>setFacturacion({funnel:[],cohorte:[],resumen:[],pagos:[],pagosSemana:[]})).finally(()=>setFacturacionLoading(false));
     }
 
   },[activeTab,cancelaciones,churn,facturacion,facturacionLoading]);
@@ -4056,13 +4122,13 @@ function App({authUser, onLogout}){
             <InsightCards insights={insights} data={data}/>
 
             <div className="kpi-grid">
-              <KPICard label={`MRR — ${new Date(new Date().getFullYear(),new Date().getMonth()-1,1).toISOString().slice(0,7)}`} value={fmtUSD(kpis.mrr)} sub={kpis.mrrCambio>=0?`▲ ${fmtPct(kpis.mrrCambio)} vs anterior`:`▼ ${fmtPct(Math.abs(kpis.mrrCambio))} vs anterior`} color="#6366f1" tooltip="MRR (Monthly Recurring Revenue): ingresos del último mes completo de facturas 2+ pagadas (Recurrencia + Cobranza). Excluye el mes actual porque está incompleto. El % compara contra el mes inmediatamente anterior."/>
-              <KPICard label="Total facturado" value={fmtUSD(kpis.totalFacturado)} sub="Monto total emitido" color="#10b981"/>
-              <KPICard label="Total cobrado" value={fmtUSD(kpis.totalCobrado)} sub="Pagos efectivamente recibidos" color="#10b981"/>
-              <KPICard label="Tasa de cobro" value={fmtPct(kpis.tasaCobro)} sub="cobrado / facturado" color={kpis.tasaCobro>=80?'#10b981':'#ef4444'} tooltip="% del monto facturado efectivamente cobrado. Saludable por encima del 80%."/>
-              <KPICard label="Clientes únicos" value={fmt(kpis.clientes)} sub="Con al menos 1 factura" color="#6366f1"/>
-              <KPICard label="Ticket promedio" value={fmtUSD(kpis.aov)} sub="cobrado por cliente" color="#f59e0b" tooltip="Promedio cobrado por cliente en el período."/>
-              <KPICard label="Open balance" value={fmtUSD(kpis.openBalance)} sub={`${fmtPct(informe.pctOpen)} del total facturado`} color="#ef4444"/>
+              <KPICard label={`MRR — ${new Date(new Date().getFullYear(),new Date().getMonth()-1,1).toISOString().slice(0,7)}`} value={fmtUSD(kpis.mrr)} sub={kpis.mrrCambio>=0?`▲ ${fmtPct(kpis.mrrCambio)} vs anterior`:`▼ ${fmtPct(Math.abs(kpis.mrrCambio))} vs anterior`} color="#3B82F6" icon={KI.repeat} tooltip="MRR (Monthly Recurring Revenue): ingresos del último mes completo de facturas 2+ pagadas (Recurrencia + Cobranza). Excluye el mes actual porque está incompleto. El % compara contra el mes inmediatamente anterior."/>
+              <KPICard label="Total facturado" value={fmtUSD(kpis.totalFacturado)} sub="Monto total emitido" color="#3B82F6" icon={KI.factura}/>
+              <KPICard label="Total cobrado" value={fmtUSD(kpis.totalCobrado)} sub="Pagos efectivamente recibidos" color="#22C55E" icon={KI.cash}/>
+              <KPICard label="Tasa de cobro" value={fmtPct(kpis.tasaCobro)} sub="cobrado / facturado" color={kpis.tasaCobro>=80?'#22C55E':'#EF4444'} icon={KI.pct} tooltip="% del monto facturado efectivamente cobrado. Saludable por encima del 80%."/>
+              <KPICard label="Clientes únicos" value={fmt(kpis.clientes)} sub="Con al menos 1 factura" color="#8B5CF6" icon={KI.users}/>
+              <KPICard label="Ticket promedio" value={fmtUSD(kpis.aov)} sub="cobrado por cliente" color="#F97316" icon={KI.ticket} tooltip="Promedio cobrado por cliente en el período."/>
+              <KPICard label="Open balance" value={fmtUSD(kpis.openBalance)} sub={`${fmtPct(informe.pctOpen)} del total facturado`} color="#EF4444" icon={KI.scale}/>
             </div>
 
             <section className="chart-section">
@@ -4177,13 +4243,13 @@ function App({authUser, onLogout}){
         {activeTab==='Upgrades'&&(
           <>
             <div className="kpi-grid">
-              <KPICard label="Tasa de upgrade" value={upgradeMetrics.tasa.toFixed(1)+'%'} sub="del total de clientes únicos" color="#6366f1" tooltip={`Del total de ${fmt(upgradeMetrics.totalClientes)} clientes únicos, el ${upgradeMetrics.tasa.toFixed(1)}% hizo al menos un upgrade.`}/>
-              <KPICard label="Tiempo promedio al upgrade" value={upgradeMetrics.tiempoProm+' días'} sub="desde la adquisición" color="#10b981" tooltip={`${upgradeMetrics.pct01}% de los upgrades ocurren en el primer mes después de la adquisición.`}/>
-              <KPICard label="Revenue antes del upgrade" value={'$'+Math.round(upgradeMetrics.revAntes)} sub="ticket promedio (sin upgrade)" color="#f59e0b"/>
-              <KPICard label="Revenue después del upgrade" value={'$'+Math.round(upgradeMetrics.revDespues)} sub="ticket promedio (upgrade)" color="#10b981"/>
-              <KPICard label="Incremento de revenue" value={(upgradeMetrics.incremento>=0?'+':'')+upgradeMetrics.incremento.toFixed(1)+'%'} sub="en ticket al hacer upgrade" color="#10b981" tooltip="Diferencia entre el ticket promedio de facturas de upgrade vs facturas regulares."/>
-              <KPICard label="Clientes con upgrade" value={fmt(upgradeMetrics.upgClientes)} sub="clientes únicos" color="#6366f1"/>
-              <KPICard label="Revenue total upgrades" value={fmtUSD(upgradeMetrics.totalRevUpg||0)} sub="acumulado" color="#8b5cf6"/>
+              <KPICard label="Tasa de upgrade" value={upgradeMetrics.tasa.toFixed(1)+'%'} sub="del total de clientes únicos" color="#3B82F6" icon={KI.pct} tooltip={`Del total de ${fmt(upgradeMetrics.totalClientes)} clientes únicos, el ${upgradeMetrics.tasa.toFixed(1)}% hizo al menos un upgrade.`}/>
+              <KPICard label="Tiempo promedio al upgrade" value={upgradeMetrics.tiempoProm+' días'} sub="desde la adquisición" color="#22C55E" icon={KI.clock} tooltip={`${upgradeMetrics.pct01}% de los upgrades ocurren en el primer mes después de la adquisición.`}/>
+              <KPICard label="Revenue antes del upgrade" value={'$'+Math.round(upgradeMetrics.revAntes)} sub="ticket promedio (sin upgrade)" color="#F97316" icon={KI.money}/>
+              <KPICard label="Revenue después del upgrade" value={'$'+Math.round(upgradeMetrics.revDespues)} sub="ticket promedio (upgrade)" color="#22C55E" icon={KI.money}/>
+              <KPICard label="Incremento de revenue" value={(upgradeMetrics.incremento>=0?'+':'')+upgradeMetrics.incremento.toFixed(1)+'%'} sub="en ticket al hacer upgrade" color="#22C55E" icon={KI.trend} tooltip="Diferencia entre el ticket promedio de facturas de upgrade vs facturas regulares."/>
+              <KPICard label="Clientes con upgrade" value={fmt(upgradeMetrics.upgClientes)} sub="clientes únicos" color="#8B5CF6" icon={KI.users}/>
+              <KPICard label="Revenue total upgrades" value={fmtUSD(upgradeMetrics.totalRevUpg||0)} sub="acumulado" color="#8B5CF6" icon={KI.cash}/>
             </div>
 
             <div className="insight-banner">
