@@ -554,7 +554,7 @@ function ChurnTab({data}){
 
   return(
     <>
-      <div style={{display:'flex', alignItems:'center', gap:12, marginBottom:20, flexWrap:'wrap'}}>
+      <div className="sticky-filters" style={{display:'flex', alignItems:'center', gap:12, marginBottom:20, flexWrap:'wrap'}}>
         <MonthRangePicker value={{from:desde, to:hasta}} onChange={({from,to})=>{setDesde(from); setHasta(to);}}/>
         {[['País',selPais,setSelPais,paisOpts],['Tipo pago',selTP,setSelTP,tpOpts]].map(([lbl,val,setter,opts])=>(
           <label key={lbl} style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#6b7280'}}>
@@ -1089,7 +1089,7 @@ function CancelacionesTab({data, nuevos=[]}){
   return(
     <>
       {/* Filtros */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:10,marginBottom:14,flexWrap:'wrap'}}>
+      <div className="sticky-filters" style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:10,marginBottom:14,flexWrap:'wrap'}}>
         <label style={{display:'flex',alignItems:'center',gap:6,fontSize:13,color:'#555',fontWeight:600}}>
           País:
           <select value={selPais} onChange={e=>setSelPais(e.target.value)} style={{fontFamily:'inherit',fontSize:12,padding:'6px 8px',borderRadius:8,border:'1px solid #e5e7eb',background:'#fff',color:'#111',maxWidth:190}}>
@@ -3140,7 +3140,7 @@ function FacturacionTab({data}){
   const hayFiltros = pais!=='Todos'||tipoCli.length>0||tipoPago!=='Todos'||tipoVenta!=='Todos'||selCohorte;
 
   return(<>
-    <div style={{display:'flex',gap:14,flexWrap:'wrap',marginBottom:hayFiltros?10:16,alignItems:'center'}}>
+    <div className="sticky-filters" style={{display:'flex',gap:14,flexWrap:'wrap',marginBottom:hayFiltros?10:16,alignItems:'center'}}>
       {sel(pais,setPais,paises,'País:')}<MultiSelect label="Tipo cliente" options={tipos.filter(o=>o!=='Todos')} value={tipoCli} onChange={setTipoCli}/>{sel(tipoPago,setTipoPago,pagos,'Tipo pago:')}{sel(tipoVenta,setTipoVenta,ventas,'Tipo venta:')}
       <span style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12,color:'#555'}}>Cohorte: <MonthRangePicker value={rangoCohorte} onChange={setRangoCohorte} align="right"/></span>
       <span style={{fontSize:11,color:'#9ca3af'}}>· clic en cohortes, países o barras para filtrar la hoja</span>
