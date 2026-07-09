@@ -195,7 +195,7 @@ const _MRP_QUICK=[
   {label:'Todo',          fn:()=>({from:'',to:''})},
 ];
 
-function MonthRangePicker({value={from:'',to:''},onChange}){
+function MonthRangePicker({value={from:'',to:''},onChange,align='left'}){
   const[open,setOpen]=useState(false);
   const[year,setYear]=useState(_MRP_TODAY.getFullYear());
   const[hover,setHover]=useState(null);
@@ -251,7 +251,7 @@ function MonthRangePicker({value={from:'',to:''},onChange}){
       </button>
       {open&&(
         <div style={{
-          position:'absolute',top:'calc(100% + 8px)',left:0,zIndex:500,
+          position:'absolute',top:'calc(100% + 8px)',left:align==='right'?'auto':0,right:align==='right'?0:'auto',zIndex:500,
           background:'#fff',border:'1px solid #e5e7eb',borderRadius:12,
           boxShadow:'0 12px 40px rgba(0,0,0,0.13)',
           display:'flex',minWidth:460,overflow:'hidden',
@@ -3142,7 +3142,7 @@ function FacturacionTab({data}){
   return(<>
     <div style={{display:'flex',gap:14,flexWrap:'wrap',marginBottom:hayFiltros?10:16,alignItems:'center'}}>
       {sel(pais,setPais,paises,'País:')}<MultiSelect label="Tipo cliente" options={tipos.filter(o=>o!=='Todos')} value={tipoCli} onChange={setTipoCli}/>{sel(tipoPago,setTipoPago,pagos,'Tipo pago:')}{sel(tipoVenta,setTipoVenta,ventas,'Tipo venta:')}
-      <span style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12,color:'#555'}}>Cohorte: <MonthRangePicker value={rangoCohorte} onChange={setRangoCohorte}/></span>
+      <span style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12,color:'#555'}}>Cohorte: <MonthRangePicker value={rangoCohorte} onChange={setRangoCohorte} align="right"/></span>
       <span style={{fontSize:11,color:'#9ca3af'}}>· clic en cohortes, países o barras para filtrar la hoja</span>
     </div>
     {hayFiltros&&(
