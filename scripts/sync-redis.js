@@ -768,7 +768,7 @@ pagos AS (
 pagos_semana AS (
   SELECT 'psem' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago, tipo_venta,
     TO_CHAR(fecha_cierre, 'YYYY-MM') AS k1,
-    CAST(LEAST(GREATEST(0, DATEDIFF('week', DATE_TRUNC('month', fecha_cierre), fecha_pago)), 51) AS varchar) AS k2,
+    CAST(GREATEST(0, DATEDIFF('day', DATE_TRUNC('week', DATE_TRUNC('month', fecha_cierre)), fecha_pago) / 7) AS varchar) AS k2,
     SUM(CASE WHEN payment_amount_usd > 0 OR cash_up > 0 THEN 1 ELSE 0 END) AS n,
     ROUND(SUM(COALESCE(payment_amount_usd, 0) + COALESCE(cash_up, 0))::numeric, 0) AS cash
   FROM detalle WHERE fecha_cierre IS NOT NULL AND fecha_pago IS NOT NULL AND (payment_amount_usd > 0 OR cash_up > 0) GROUP BY 2,3,4,5,6,7
