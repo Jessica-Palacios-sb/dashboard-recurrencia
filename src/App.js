@@ -193,7 +193,6 @@ const _MRP_QUICK=[
   {label:'Últimos 6 m',   fn:()=>({from:_mrpAdd(_MRP_LAST,-5),to:_MRP_LAST})},
   {label:'Último año',    fn:()=>({from:_mrpAdd(_MRP_LAST,-11),to:_MRP_LAST})},
   {label:'Todo',          fn:()=>({from:'',to:''})},
-  {label:'Fecha personalizada', custom:true},
 ];
 
 function MonthRangePicker({value={from:'',to:''},onChange,align='left'}){
@@ -202,7 +201,10 @@ function MonthRangePicker({value={from:'',to:''},onChange,align='left'}){
   const[hover,setHover]=useState(null);
   const[anchor,setAnchor]=useState(null);
   const[activeQ,setActiveQ]=useState(null);
+  const[tempFrom,setTempFrom]=useState(value.from||'');
+  const[tempTo,setTempTo]=useState(value.to||'');
   const ref=useRef();
+  useEffect(()=>{ if(open){ setTempFrom(value.from?value.from+'-01':''); setTempTo(value.to?value.to+'-01':''); } },[open]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{
     const h=e=>{if(ref.current&&!ref.current.contains(e.target)){setOpen(false);setAnchor(null);setHover(null);}};
     document.addEventListener('mousedown',h);
@@ -211,7 +213,6 @@ function MonthRangePicker({value={from:'',to:''},onChange,align='left'}){
   const apply=(from,to)=>{onChange({from,to});setAnchor(null);setHover(null);};
   const handleQuick=(rng,label)=>{
     setActiveQ(label);setAnchor(null);
-    if(rng.custom){setHover(null);return;} // deja el picker abierto para elegir el rango en la grilla
     const{from,to}=rng.fn();
     apply(from,to);
     if(from)setYear(_mrpParse(from).y);
@@ -280,63 +281,18 @@ function MonthRangePicker({value={from:'',to:''},onChange,align='left'}){
               }}>✕ Limpiar</button>
             )}
           </div>
-          {/* Calendar */}
-          <div style={{padding:'16px 18px',flex:1}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-              <button onClick={()=>setYear(y=>y-1)} style={navBtnSt}>‹ {year-1}</button>
-              <span style={{fontWeight:700,fontSize:15,color:'#111'}}>{year}</span>
-              <button onClick={()=>setYear(y=>y+1)} disabled={year>=_MRP_TODAY.getFullYear()} style={{...navBtnSt,opacity:year>=_MRP_TODAY.getFullYear()?.4:1}}>
-                {year+1} ›
-              </button>
+          {/* Rango personalizado */}
+          <div className="drp-right" style={{padding:'16px 18px',flex:1,minWidth:300}}>
+            <div className="drp-right-title">Rango personalizado</div>
+            <div className="drp-inputs">
+              <div className="drp-input-group"><label>Desde</label><input type="date" max={_MRP_THIS+'-31'} value={tempFrom} onChange={e=>{setTempFrom(e.target.value);setActiveQ(null);}}/></div>
+              <div className="drp-input-group"><label>Hasta</label><input type="date" max={_MRP_THIS+'-31'} value={tempTo} onChange={e=>{setTempTo(e.target.value);setActiveQ(null);}}/></div>
             </div>
-            <div style={{fontSize:11,color:'#bbb',marginBottom:10,textAlign:'center'}}>
-              {anchor?'Selecciona el mes final':'Haz clic para iniciar un rango'}
+            {(tempFrom||tempTo)&&<div className="drp-preview"><div className="drp-preview-label">Período (filtra por mes)</div><div className="drp-preview-value">{tempFrom?_mrpLabel(tempFrom.slice(0,7)):'…'} → {tempTo?_mrpLabel(tempTo.slice(0,7)):'…'}</div></div>}
+            <div className="drp-actions">
+              <button className="drp-btn-cancel" onClick={()=>setOpen(false)}>Cancelar</button>
+              <button className="drp-btn-apply" onClick={()=>{ let f=tempFrom?tempFrom.slice(0,7):'',t=tempTo?tempTo.slice(0,7):''; if(f&&t&&f>t){const x=f;f=t;t=x;} onChange({from:f,to:t}); setActiveQ(null); setOpen(false); }}>Actualizar</button>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:5}}>
-              {Array.from({length:12},(_,i)=>{
-                const key=_mrpKey(year,i);
-                const isFuture=key>=_MRP_THIS;
-                const inR=inRange(key);
-                const edge=isEdge(key);
-                const isAnch=anchor===key;
-                return(
-                  <button key={key} disabled={isFuture}
-                    onClick={()=>handleCell(key)}
-                    onMouseEnter={()=>{if(anchor)setHover(key);}}
-                    onMouseLeave={()=>{if(anchor)setHover(null);}}
-                    style={{
-                      padding:'9px 4px',borderRadius:7,border:'none',
-                      fontSize:12,fontWeight:edge||isAnch?700:500,
-                      cursor:isFuture?'not-allowed':'pointer',fontFamily:'inherit',
-                      background:edge||isAnch?'#FFD700':inR?'#FFF9C4':'transparent',
-                      color:edge||isAnch?'#1a1600':isFuture?'#d1d5db':inR?'#7a5800':'#333',
-                      outline:isAnch?'2px solid #e6c200':'none',outlineOffset:2,
-                      transition:'all .1s',position:'relative',
-                    }}>
-                    {_MRP_MESES[i]}
-                    {key===_MRP_LAST&&<span style={{position:'absolute',top:2,right:3,width:5,height:5,borderRadius:'50%',background:'#10b981'}}/>}
-                  </button>
-                );
-              })}
-            </div>
-            {hasFilter&&(
-              <div style={{
-                marginTop:12,padding:'8px 12px',background:'#f9fafb',
-                borderRadius:8,border:'1px solid #f0f0f0',
-                display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,
-              }}>
-                <div style={{fontSize:12,color:'#555'}}>
-                  {value.from&&value.to&&value.from!==value.to
-                    ?<><strong style={{color:'#111'}}>{_mrpLabel(value.from)}</strong>{' → '}<strong style={{color:'#111'}}>{_mrpLabel(value.to)}</strong>{` · ${_mrpBetween(value.from,value.to)+1} meses`}</>
-                    :<strong style={{color:'#111'}}>{_mrpLabel(value.from||value.to)}</strong>
-                  }
-                </div>
-                <button onClick={()=>{apply(value.from,value.to);setOpen(false);}} style={{
-                  padding:'5px 14px',background:'#FFD700',border:'none',
-                  borderRadius:6,fontWeight:700,fontSize:12,cursor:'pointer',color:'#1a1600',fontFamily:'inherit',flexShrink:0,
-                }}>Aplicar</button>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -3022,6 +2978,8 @@ function FacturacionTab({data}){
   const [expRows,setExpRows]=useState({});
   const [modoPagos,setModoPagos]=useState('num');
   const [modoSem,setModoSem]=useState('acum');
+  const [granSem,setGranSem]=useState('semana');
+  const [colapSem,setColapSem]=useState({});
   const [rangoCohorte,setRangoCohorte]=useState({from:'2025-01',to:''});
   const togglePais=v=>setPais(p=>p.includes(v)?p.filter(x=>x!==v):[...p,v]);
   const toggleTipoCli=v=>setTipoCli(p=>p.includes(v)?p.filter(x=>x!==v):[...p,v]);
@@ -3227,38 +3185,69 @@ function FacturacionTab({data}){
 
     <section className="chart-section">
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:2,flexWrap:'wrap',gap:8}}>
-        <SectionTitle>% Pagado por cohorte × semana</SectionTitle>
-        <div className="gran-selector">
-          <button className={`gran-btn${modoSem==='acum'?' active':''}`} onClick={()=>setModoSem('acum')}>Acumulado</button>
-          <button className={`gran-btn${modoSem==='sem'?' active':''}`} onClick={()=>setModoSem('sem')}>Por semana</button>
+        <SectionTitle>% Pagado por cohorte × {granSem==='mes'?'mes':'semana'}</SectionTitle>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          <div className="gran-selector">
+            <button className={`gran-btn${granSem==='mes'?' active':''}`} onClick={()=>{setGranSem('mes');setColapSem({});}}>Mes</button>
+            <button className={`gran-btn${granSem==='semana'?' active':''}`} onClick={()=>{setGranSem('semana');setColapSem({});}}>Semana</button>
+          </div>
+          <div className="gran-selector">
+            <button className={`gran-btn${modoSem==='acum'?' active':''}`} onClick={()=>setModoSem('acum')}>Acumulado</button>
+            <button className={`gran-btn${modoSem==='sem'?' active':''}`} onClick={()=>setModoSem('sem')}>Incremento</button>
+          </div>
         </div>
       </div>
-      <p style={{margin:'-2px 0 14px',fontSize:12,color:'#9ca3af'}}>Filas = mes de cierre · columnas = semanas desde el cierre (primeras 16). <b>% Pagado</b> = total pagado acumulado (pagos + cash up) ÷ importe — el acumulado final coincide con el "% Pagado" del Resumen. Modo <b>Por semana</b> = lo cobrado solo en esa semana.</p>
+      <p style={{margin:'-2px 0 14px',fontSize:12,color:'#9ca3af'}}>Filas = mes de cierre · columnas = {granSem==='mes'?'meses':'semanas (lunes-domingo)'} desde el <b>vencimiento de la 2ª factura</b> (inicio de la recurrencia) — cómo pagan {granSem==='mes'?'mes a mes':'semana a semana'} desde ahí — agrupadas de 5 en 5 (toca una banda <b>{granSem==='mes'?'M':'S'}1–{granSem==='mes'?'M':'S'}5 ▾</b> para colapsar al acumulado de su último {granSem==='mes'?'mes':'semana'}). <b>Acumulado</b> = % cobrado hasta ahí · <b>Incremento</b> = lo cobrado solo en ese {granSem==='mes'?'mes':'semana'}. El acumulado final = "% Pagado" del Resumen.</p>
       {(()=>{
-        const NW=16;
-        const psem=(data.pagosSemana||[]).filter(matchFiltros);
+        const PER=granSem==='mes'?'M':'S';
+        const psem=(granSem==='mes'?(data.pagosMes||[]):(data.pagosSemana||[])).filter(matchFiltros);
         const impCoh={}; (data.resumen||[]).filter(matchFiltros).forEach(r=>{ impCoh[r.cohorte]=(impCoh[r.cohorte]||0)+(+r.importe||0); });
-        const cashCS={}, lastW={};
-        psem.forEach(r=>{ const c=r.cohorte, s=Math.min(+r.semana,NW-1); (cashCS[c]||(cashCS[c]={}))[s]=(cashCS[c][s]||0)+(+r.cash||0); lastW[c]=Math.max(lastW[c]??-1, s); });
+        const cashCS={}, lastW={}; let maxW=-1;
+        psem.forEach(r=>{ const c=r.cohorte, s=granSem==='mes'?+r.mes:+r.semana; (cashCS[c]||(cashCS[c]={}))[s]=(cashCS[c][s]||0)+(+r.cash||0); if(s>(lastW[c]??-1))lastW[c]=s; if(s>maxW)maxW=s; });
         const cohs=Object.keys(cashCS).filter(c=>impCoh[c]>0).sort();
-        if(cohs.length===0) return <div style={{fontSize:13,color:'#9ca3af',padding:'12px 0'}}>Sin datos para el filtro.</div>;
+        if(cohs.length===0||maxW<0) return <div style={{fontSize:13,color:'#9ca3af',padding:'12px 0'}}>Sin datos para el filtro.</div>;
+        const NW=maxW+1;
         const M={}; let maxSemPct=0;
-        cohs.forEach(c=>{ const imp=impCoh[c]; let cum=0; M[c]=[]; for(let i=0;i<NW;i++){ const cash=(cashCS[c]||{})[i]||0; cum+=cash; const acum=imp>0?cum/imp*100:0, sem=imp>0?cash/imp*100:0; M[c][i]={acum,sem,has:i<=lastW[c]}; if(cell_ok(i,lastW[c])&&sem>maxSemPct)maxSemPct=sem; } });
-        function cell_ok(i,lw){return i<=lw;}
+        cohs.forEach(c=>{ const imp=impCoh[c]; let cum=0; M[c]=[]; for(let i=0;i<NW;i++){ const cash=(cashCS[c]||{})[i]||0; cum+=cash; const acum=imp>0?cum/imp*100:0, sem=imp>0?cash/imp*100:0; M[c][i]={acum,sem,has:i<=(lastW[c]??-1)}; if(i<=(lastW[c]??-1)&&sem>maxSemPct)maxSemPct=sem; } });
         const colorFor=(pct,max)=>{ const t=max>0?pct/max:0; if(t>0.75)return '#CDEBD6'; if(t>0.6)return '#E3F4E8'; if(t>0.4)return '#FBE9D6'; if(t>0.22)return '#FBDCD9'; return '#F8CCC8'; };
         const maxScale = modoSem==='acum'?100:Math.max(5,Math.ceil(maxSemPct));
+        const nGroups=Math.ceil(NW/5);
+        const groups=Array.from({length:nGroups},(_,g)=>({g,start:g*5,end:Math.min(g*5+5,NW)-1}));
+        const cols=[];
+        groups.forEach(gr=>{ if(colapSem[gr.g]) cols.push({t:'grp',gr}); else for(let i=gr.start;i<=gr.end;i++) cols.push({t:'wk',i}); });
+        const groupVal=(co,gr)=>{ const row=M[co]; let last=-1; for(let i=gr.start;i<=gr.end;i++){ if(row[i]&&row[i].has)last=i; } if(last<0)return null; if(modoSem==='acum')return row[last].acum; let s=0; for(let i=gr.start;i<=gr.end;i++){ if(row[i]&&row[i].has)s+=row[i].sem; } return s; };
+        const val=cell=>modoSem==='acum'?cell.acum:cell.sem;
+        const cellSt=(bg,strong)=>({textAlign:'center',padding:'7px 6px',borderRadius:5,background:bg,fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap',fontWeight:strong?700:600,color:'#123'});
+        const emptySt={textAlign:'center',padding:'7px 6px',color:'#d1d5db'};
         return (
         <div style={{overflowX:'auto'}}>
           <table style={{borderCollapse:'separate',borderSpacing:3,fontSize:11}}>
-            <thead><tr><th></th>{Array.from({length:NW},(_,i)=><th key={i} style={{fontSize:10,color:'#888',fontWeight:600,padding:'3px 6px',whiteSpace:'nowrap'}}>S{i+1}</th>)}</tr></thead>
+            <thead>
+              <tr>
+                <th></th>
+                {groups.map(gr=><th key={gr.g} colSpan={colapSem[gr.g]?1:(gr.end-gr.start+1)} onClick={()=>setColapSem(p=>({...p,[gr.g]:!p[gr.g]}))} style={{cursor:'pointer',fontSize:10,fontWeight:700,color:'#6b7280',background:'#f4f5f7',borderRadius:5,padding:'4px 8px',whiteSpace:'nowrap',userSelect:'none'}} title={colapSem[gr.g]?'Expandir grupo':'Colapsar grupo'}>{PER}{gr.start+1}–{PER}{gr.end+1}{colapSem[gr.g]?' ▸':' ▾'}</th>)}
+              </tr>
+              <tr>
+                <th></th>
+                {cols.map((col,ci)=> col.t==='wk'
+                  ? <th key={ci} style={{fontSize:10,color:'#888',fontWeight:600,padding:'3px 6px',whiteSpace:'nowrap'}}>{PER}{col.i+1}</th>
+                  : <th key={ci} style={{fontSize:10,color:'#a07000',fontWeight:700,padding:'3px 6px',whiteSpace:'nowrap'}}>→{PER}{col.gr.end+1}</th>
+                )}
+              </tr>
+            </thead>
             <tbody>
               {cohs.map(co=>(
                 <tr key={co}>
                   <td onClick={()=>toggleCohorte(co)} title="Filtrar la hoja por esta cohorte" style={{color:selCohorte===co?'#a07000':'#555',fontWeight:600,whiteSpace:'nowrap',paddingRight:8,fontSize:11,cursor:'pointer',textDecoration:selCohorte===co?'underline':'none'}}>{mesCorto(co)}</td>
-                  {M[co].map((cell,i)=> !cell.has
-                    ? <td key={i} style={{textAlign:'center',padding:'7px 6px',color:'#d1d5db'}}>·</td>
-                    : <td key={i} style={{textAlign:'center',padding:'7px 6px',borderRadius:5,background:colorFor(modoSem==='acum'?cell.acum:cell.sem,maxScale),fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap',fontWeight:600,color:'#123'}}>{Math.round(modoSem==='acum'?cell.acum:cell.sem)}%</td>
-                  )}
+                  {cols.map((col,ci)=>{
+                    if(col.t==='wk'){ const cell=M[co][col.i];
+                      return !cell||!cell.has ? <td key={ci} style={emptySt}>·</td>
+                        : <td key={ci} style={cellSt(colorFor(val(cell),maxScale),false)}>{Math.round(val(cell))}%</td>;
+                    }
+                    const gv=groupVal(co,col.gr);
+                    return gv==null ? <td key={ci} style={emptySt}>·</td>
+                      : <td key={ci} style={{...cellSt(colorFor(gv,maxScale),true),outline:'1px solid #e0e2e8'}}>{Math.round(gv)}%</td>;
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -3484,10 +3473,10 @@ function App({authUser, onLogout}){
     }
     if(activeTab==='Facturación' && !facturacion && !facturacionLoading){
       setFacturacionLoading(true);
-      fetch('/api/facturacion').then(r=>r.json()).then(({funnel,cohorte,resumen,pagos,pagosSemana,error})=>{
+      fetch('/api/facturacion').then(r=>r.json()).then(({funnel,cohorte,resumen,pagos,pagosSemana,pagosMes,error})=>{
         if(error)throw new Error(error);
-        setFacturacion({funnel:funnel||[], cohorte:cohorte||[], resumen:resumen||[], pagos:pagos||[], pagosSemana:pagosSemana||[]});
-      }).catch(()=>setFacturacion({funnel:[],cohorte:[],resumen:[],pagos:[],pagosSemana:[]})).finally(()=>setFacturacionLoading(false));
+        setFacturacion({funnel:funnel||[], cohorte:cohorte||[], resumen:resumen||[], pagos:pagos||[], pagosSemana:pagosSemana||[], pagosMes:pagosMes||[]});
+      }).catch(()=>setFacturacion({funnel:[],cohorte:[],resumen:[],pagos:[],pagosSemana:[],pagosMes:[]})).finally(()=>setFacturacionLoading(false));
     }
 
   },[activeTab,cancelaciones,churn,facturacion,facturacionLoading]);

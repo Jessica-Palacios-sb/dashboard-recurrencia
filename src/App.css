@@ -189,7 +189,7 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color
 .drp-inputs { display: flex; gap: 12px; }
 .drp-input-group { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .drp-input-group label { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.4px; }
-.drp-input-group input[type="date"] { font-family: inherit; font-size: 13px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text); outline: none; }
+.drp-input-group input[type="date"], .drp-input-group input[type="month"] { font-family: inherit; font-size: 13px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text); outline: none; }
 .drp-input-group input:focus { border-color: var(--yellow); }
 .drp-preview { background: #fffbe0; border: 1px solid #ffe04d; border-radius: 8px; padding: 10px 14px; text-align: center; }
 .drp-preview-label { font-size: 10px; font-weight: 600; color: #92700a; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
