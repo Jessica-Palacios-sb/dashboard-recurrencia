@@ -765,21 +765,26 @@ pagos AS (
     ROUND(SUM(COALESCE(payment_amount_usd, 0))::numeric, 0) AS cash
   FROM detalle WHERE fecha_cierre IS NOT NULL AND numero_invoice_factura BETWEEN 1 AND 24 GROUP BY 2,3,4,5,6,7
 ),
+pmg_base AS (
+  SELECT pais, tipo_cliente, tipo_pago, tipo_venta, fecha_cierre, fecha_pago, payment_amount_usd, cash_up,
+    MIN(CASE WHEN numero_invoice_factura = 2 THEN due_date END) OVER (PARTITION BY id_oportunidad) AS due_2
+  FROM detalle
+),
 pagos_semana AS (
   SELECT 'psem' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago, tipo_venta,
     TO_CHAR(fecha_cierre, 'YYYY-MM') AS k1,
-    CAST(GREATEST(0, DATEDIFF('day', DATE_TRUNC('week', COALESCE(due_date, fecha_cierre)), fecha_pago) / 7) AS varchar) AS k2,
+    CAST(GREATEST(0, DATEDIFF('day', DATE_TRUNC('week', COALESCE(due_2, fecha_cierre)), fecha_pago) / 7) AS varchar) AS k2,
     SUM(CASE WHEN payment_amount_usd > 0 OR cash_up > 0 THEN 1 ELSE 0 END) AS n,
     ROUND(SUM(COALESCE(payment_amount_usd, 0) + COALESCE(cash_up, 0))::numeric, 0) AS cash
-  FROM detalle WHERE fecha_cierre IS NOT NULL AND fecha_pago IS NOT NULL AND (payment_amount_usd > 0 OR cash_up > 0) GROUP BY 2,3,4,5,6,7
+  FROM pmg_base WHERE fecha_cierre IS NOT NULL AND fecha_pago IS NOT NULL AND (payment_amount_usd > 0 OR cash_up > 0) GROUP BY 2,3,4,5,6,7
 ),
 pagos_mes AS (
   SELECT 'pmes' AS tipo, pais, tipo_cliente, CASE WHEN tipo_pago = 'Cuotas' THEN 'Cuotas' ELSE 'Recurrencia' END AS tipo_pago, tipo_venta,
     TO_CHAR(fecha_cierre, 'YYYY-MM') AS k1,
-    CAST(GREATEST(0, DATEDIFF('month', COALESCE(due_date, fecha_cierre), fecha_pago)) AS varchar) AS k2,
+    CAST(GREATEST(0, DATEDIFF('month', COALESCE(due_2, fecha_cierre), fecha_pago)) AS varchar) AS k2,
     SUM(CASE WHEN payment_amount_usd > 0 OR cash_up > 0 THEN 1 ELSE 0 END) AS n,
     ROUND(SUM(COALESCE(payment_amount_usd, 0) + COALESCE(cash_up, 0))::numeric, 0) AS cash
-  FROM detalle WHERE fecha_cierre IS NOT NULL AND fecha_pago IS NOT NULL AND (payment_amount_usd > 0 OR cash_up > 0) GROUP BY 2,3,4,5,6,7
+  FROM pmg_base WHERE fecha_cierre IS NOT NULL AND fecha_pago IS NOT NULL AND (payment_amount_usd > 0 OR cash_up > 0) GROUP BY 2,3,4,5,6,7
 )
 SELECT * FROM funnel WHERE k1 IS NOT NULL UNION ALL SELECT * FROM cohorte UNION ALL SELECT * FROM pagos UNION ALL SELECT * FROM pagos_semana UNION ALL SELECT * FROM pagos_mes`;
       // Resumen por cohorte (mes de cierre): sales, facturas, importe, meta a hoy, total pagado.
